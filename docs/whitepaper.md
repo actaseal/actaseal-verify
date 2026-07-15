@@ -250,10 +250,12 @@ of the frameworks named. **No certification against any of these
 frameworks currently exists for this project.**
 
 - **NAIC Model Bulletin on the Use of AI Systems by Insurers** (adopted
-  December 2023): as of 2026, more than twenty U.S. state insurance
-  regulators have adopted the bulletin in full or substantially similar
-  form, and the NAIC's AI Systems Evaluation Tool is in a multistate
-  examiner pilot in 2026. The bulletin's expectations around
+  December 2023): 24 states and the District of Columbia have adopted
+  the NAIC Model Bulletin (per the NAIC's own implementation tracker,
+  April 2026). Examination is being operationalized now, not just
+  drafted: the NAIC's AI Systems Evaluation Tool is in a 12-state pilot
+  running March–September 2026, with adoption expected at the NAIC Fall
+  2026 National Meeting. The bulletin's expectations around
   documentation, governance, and the ability to explain and evidence an
   AI-influenced decision are directly relevant to what a decision-record
   artifact like this one is built to provide; this document makes no
