@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "actaseal-verify"
+version = "1.0.0"
+description = "Standalone offline verifier for ActaSeal dispute evidence packets"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.9"
+dependencies = ["cryptography"]
+
+[tool.setuptools]
+py-modules = ["verify"]
+
+# No console_scripts entry point on purpose: verify.py's main(argv) takes an
+# argv-style list so that it stays a byte-identical copy of the file every
+# real ActaSeal packet embeds as verify.py -- adding a wrapper function here
+# would create exactly the drift this repo exists to avoid. Run it as
+# `python -m verify packet/` or `python verify.py packet/`.
