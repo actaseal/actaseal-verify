@@ -19,7 +19,7 @@ public issue -- in particular, anything in the following classes:
   outside the packet directory, or a dependency beyond the standard
   library and `cryptography`.
 
-Email: chatftx@gmail.com with a description and, if possible, a minimal
+Email: security@actaseal.com with a description and, if possible, a minimal
 packet reproducing the issue. We aim to acknowledge within 3 business
 days.
 
