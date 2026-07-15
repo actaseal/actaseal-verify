@@ -1,0 +1,330 @@
+<title>Verify this packet yourself — actaseal-verify</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Verify an ActaSeal dispute evidence packet offline, in under 60 seconds, without installing ActaSeal or trusting our servers.">
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-alt: #f6f7f8;
+    --text: #1a1d21;
+    --text-dim: #55606b;
+    --border: #dde1e5;
+    --accent: #1f6f4a;
+    --accent-bg: #eaf5ef;
+    --code-bg: #101418;
+    --code-text: #e6edf3;
+    --warn-bg: #fdf3e7;
+    --warn-border: #e3b873;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a;
+      --bg-alt: #1b1f23;
+      --text: #e7eaed;
+      --text-dim: #9aa4ad;
+      --border: #2c3238;
+      --accent: #5fbf90;
+      --accent-bg: #17251d;
+      --code-bg: #0a0d10;
+      --code-text: #e6edf3;
+      --warn-bg: #2a2313;
+      --warn-border: #6b5424;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a; --bg-alt: #1b1f23; --text: #e7eaed; --text-dim: #9aa4ad;
+    --border: #2c3238; --accent: #5fbf90; --accent-bg: #17251d;
+    --code-bg: #0a0d10; --code-text: #e6edf3; --warn-bg: #2a2313; --warn-border: #6b5424;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --bg-alt: #f6f7f8; --text: #1a1d21; --text-dim: #55606b;
+    --border: #dde1e5; --accent: #1f6f4a; --accent-bg: #eaf5ef;
+    --code-bg: #101418; --code-text: #e6edf3; --warn-bg: #fdf3e7; --warn-border: #e3b873;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 3rem 1.25rem 5rem;
+  }
+  h1 {
+    font-size: 1.7rem;
+    line-height: 1.3;
+    margin: 0 0 0.5rem;
+  }
+  h2 {
+    font-size: 1.15rem;
+    margin: 2.75rem 0 0.9rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+  }
+  .lede {
+    font-size: 1.05rem;
+    color: var(--text-dim);
+    margin: 0 0 2.25rem;
+  }
+  .tagline {
+    display: inline-block;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    background: var(--accent-bg);
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    margin-bottom: 0.9rem;
+  }
+  pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 1rem 1.1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 0.86rem;
+    line-height: 1.55;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  p code, li code {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    padding: 0.05rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.88em;
+  }
+  .step {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    margin: 0 0 1rem;
+  }
+  .step-num {
+    flex: none;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-size: 0.82rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .step-body { padding-top: 0.05rem; }
+  .step-body strong { display: block; margin-bottom: 0.25rem; }
+  .packets {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+  @media (max-width: 560px) {
+    .packets { grid-template-columns: 1fr; }
+  }
+  .packet-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    background: var(--bg-alt);
+  }
+  .packet-card h3 {
+    margin: 0 0 0.4rem;
+    font-size: 0.98rem;
+  }
+  .packet-card p {
+    margin: 0 0 0.6rem;
+    color: var(--text-dim);
+    font-size: 0.92rem;
+  }
+  .claims {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .claims li {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.7rem;
+  }
+  .claims .claim-label {
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    display: block;
+    margin-bottom: 0.3rem;
+  }
+  .claims .claim-field {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-top: 0.35rem;
+  }
+  .note {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    font-size: 0.92rem;
+    margin: 1rem 0;
+  }
+  .links {
+    display: flex;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+  }
+  a { color: var(--accent); }
+  footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 0.85rem;
+  }
+</style>
+
+<main>
+  <span class="tagline">actaseal-verify</span>
+  <h1>Verify this packet yourself.</h1>
+  <p class="lede">
+    ActaSeal is a policy gateway that sits in front of AI-agent payment
+    actions and produces a signed, tamper-evident evidence record for
+    every decision. When a dispute happens, that record can be exported
+    as a self-contained packet. This page walks through checking one
+    yourself — no ActaSeal install, no account, no call to us.
+  </p>
+
+  <h2>Verify a real packet in under 60 seconds</h2>
+  <div class="step">
+    <span class="step-num">1</span>
+    <div class="step-body">
+      <strong>Get the verifier and a demo packet.</strong>
+      Clone this repo, or just download <code>verify.py</code> and one of
+      the two demo packet zips below.
+    </div>
+  </div>
+  <div class="step">
+    <span class="step-num">2</span>
+    <div class="step-body">
+      <strong>Run it.</strong>
+      One dependency (<code>cryptography</code>, for the signature check),
+      no other install, no network access required by the verifier itself.
+    </div>
+  </div>
+  <div class="step">
+    <span class="step-num">3</span>
+    <div class="step-body">
+      <strong>Read the result.</strong>
+      <code>VERIFIED</code> and exit code <code>0</code>, or a named list
+      of exactly what failed. Nothing in between.
+    </div>
+  </div>
+
+  <pre><code>pip install cryptography
+unzip demo-packet-anchored.zip -d packet
+python verify.py packet</code></pre>
+
+  <p>Expected output:</p>
+  <pre><code>VERIFIED: 3 ledger events, receipt signature valid, chain intact
+  action_id: refund-demo-001
+  decision: ALLOW (APPROVAL_GRANTED)</code></pre>
+
+  <h2>Two demo packets, two settlement states</h2>
+  <div class="packets">
+    <div class="packet-card">
+      <h3>demo-packet-unanchored</h3>
+      <p>A fully verified evidence chain and a validly signed receipt.
+      No payment-rail settlement anchor is attached — the packet states
+      that explicitly (<code>SETTLEMENT_UNANCHORED</code>), rather than
+      leaving the field blank.</p>
+      <a href="../../demo/demo-packet-unanchored.zip">demo-packet-unanchored.zip</a>
+    </div>
+    <div class="packet-card">
+      <h3>demo-packet-anchored</h3>
+      <p>The same kind of evidence chain, plus a settlement anchor: the
+      rail, an anchor id, a settlement timestamp, and the
+      <code>mandate_hash</code> tying the settlement back to the same
+      delegation mandate the receipt was decided under.</p>
+      <a href="../../demo/demo-packet-anchored.zip">demo-packet-anchored.zip</a>
+    </div>
+  </div>
+  <p>
+    The difference matters for a dispute: an anchored packet lets a
+    counterparty check that the recorded decision and the actual
+    payment-rail settlement are bound to the same mandate, not just
+    asserted to be related. An unanchored packet is still a fully valid,
+    fully verifiable evidence chain — it just doesn't carry that
+    additional rail binding.
+  </p>
+
+  <h2>What this packet proves</h2>
+  <p>Not a field-by-field dump — the specific claims a verified packet
+  lets you check, each traced to what's actually inside it:</p>
+  <ul class="claims">
+    <li>
+      <span class="claim-label">Who delegated authority</span>
+      A specific delegation mandate authorized this action. The receipt
+      and, when present, the settlement anchor both carry the same
+      <code>mandate_hash</code> — you can confirm they refer to the same
+      delegation, not two different ones asserted to match.
+      <div class="claim-field">fields: <code>receipt.json → mandate_hash</code>, <code>manifest.json → settlement_anchor.anchor.mandate_hash</code></div>
+    </li>
+    <li>
+      <span class="claim-label">What scope was granted, and what actually happened</span>
+      The packet records both the intent scope the agent was granted and
+      the action it actually executed, each hashed independently, plus
+      the verdict comparing them.
+      <div class="claim-field">field: <code>receipt.json → scope_conformance</code></div>
+    </li>
+    <li>
+      <span class="claim-label">In-scope or breach</span>
+      A single verdict — <code>IN_SCOPE</code> or a named breach — and,
+      if it's a breach, which dimension of the granted scope was
+      exceeded. Not a probability score; a re-derivable yes/no.
+      <div class="claim-field">field: <code>receipt.json → scope_conformance.verdict</code>, <code>.breaches</code></div>
+    </li>
+    <li>
+      <span class="claim-label">When it happened, in what order</span>
+      Every event in the packet is chained to the one before it by hash,
+      so the sequence and timing can't be reordered or have events
+      inserted without breaking the chain — the verifier checks this
+      explicitly.
+      <div class="claim-field">field: <code>ledger_slice.ndjson</code> (chained via <code>previous_event_hash</code>)</div>
+    </li>
+    <li>
+      <span class="claim-label">Anchored to which payment rail (if settled)</span>
+      When present, the settlement anchor names the rail, an anchor id,
+      and a settlement timestamp, and its hash is recomputed by the
+      verifier from that content — it isn't just a string someone typed in.
+      <div class="claim-field">field: <code>manifest.json → settlement_anchor</code></div>
+    </li>
+  </ul>
+
+  <div class="note">
+    What this does <em>not</em> prove: that the underlying business
+    decision was correct, or that <code>receipt_public_key_hex</code>
+    belongs to the operator you think it does — that binding is on you,
+    checked out of band. See the README for the full list.
+  </div>
+
+  <h2>Read more</h2>
+  <div class="links">
+    <a href="../../SPEC.md">Packet format spec</a>
+    <a href="../../README.md">Full README</a>
+    <a href="../../verify.py">verify.py source</a>
+    <a href="../../SECURITY.md">Report a verifier bug</a>
+  </div>
+
+  <footer>
+    actaseal-verify — Apache-2.0. This page and the verifier it describes
+    are the entire trust surface: there is no service behind this check.
+  </footer>
+</main>
