@@ -244,7 +244,19 @@ def verify_scope_conformance(manifest, receipt, events, failures):
                 % (manifest["scope_conformance_headline"], expected)
             )
 
-    scope_events = [event for event in events if event.get("event_type") == "ScopeEvaluated"]
+    # ledger_slice.ndjson is the CONTIGUOUS span between this action's
+    # first and last event (see actaseal.dispute.packet.
+    # extract_ledger_slice) -- by design, that span can include OTHER
+    # actions' events interleaved in between (e.g. a BREACH acknowledged
+    # after a different action scope-evaluated in between). Scoping by
+    # action_id here is required so a foreign ScopeEvaluated event never
+    # gets compared against this receipt's own scope_conformance.
+    action_id = manifest.get("action_id")
+    scope_events = [
+        event
+        for event in events
+        if event.get("event_type") == "ScopeEvaluated" and event.get("action_id") == action_id
+    ]
     result = receipt.get("scope_conformance")
     if result is not None and not scope_events:
         failures.append(
