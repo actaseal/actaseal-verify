@@ -294,6 +294,37 @@ def verify_scope_conformance(manifest, receipt, events, failures):
                 )
 
 
+def verify_approver_snapshot(manifest, receipt, events, failures):
+    """When present, the receipt's approver_snapshot_hash must recompute
+    from an ApproverSnapshotCaptured ledger event for this action --
+    additive: a receipt that predates this field (approver_snapshot_hash
+    is None) is not checked at all, and stays valid either way. This is
+    the frozen record of exactly what the human approver saw (scope-vs-
+    action comparison, TTL remaining, request state) at decision time."""
+    snapshot_hash = receipt.get("approver_snapshot_hash")
+    if snapshot_hash is None:
+        return
+
+    action_id = manifest.get("action_id")
+    snapshot_events = [
+        event
+        for event in events
+        if event.get("event_type") == "ApproverSnapshotCaptured" and event.get("action_id") == action_id
+    ]
+    if not snapshot_events:
+        failures.append(
+            "APPROVER_SNAPSHOT_EVENT_MISSING: receipt.json claims an approver_snapshot_hash "
+            "the ledger_slice.ndjson never witnessed (no ApproverSnapshotCaptured event)"
+        )
+        return
+    payload = snapshot_events[-1].get("payload", {})
+    if canonical_hash(payload) != snapshot_hash:
+        failures.append(
+            "APPROVER_SNAPSHOT_HASH_MISMATCH: ApproverSnapshotCaptured payload does not "
+            "recompute to receipt.json's approver_snapshot_hash"
+        )
+
+
 def verify_settlement_anchor(manifest, failures):
     """The settlement anchor block must be present -- absence of a
     settlement is itself stated as SETTLEMENT_UNANCHORED, never silent --
@@ -358,6 +389,7 @@ def main(argv):
     verify_receipt(manifest, receipt, events, failures, crypto)
     verify_authentication_docs(receipt, events, base, failures)
     verify_scope_conformance(manifest, receipt, events, failures)
+    verify_approver_snapshot(manifest, receipt, events, failures)
     verify_settlement_anchor(manifest, failures)
 
     if failures:
