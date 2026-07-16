@@ -33,7 +33,12 @@ Trust root: receipt_public_key_hex in manifest.json. Compare it out of
 band against the gateway operator's published key -- a packet re-signed
 end to end with a different key is internally consistent.
 
-Usage: python verify.py [packet_dir]   (defaults to this script's directory)
+Usage: python verify.py [packet_dir] [--anchors PATH]
+  packet_dir defaults to this script's directory. --anchors is optional:
+  when given, also confirms this packet's ledger_root_hash was witnessed
+  by a successful entry in the named anchor log (a jsonl file of
+  transparency-anchor records, see actaseal.ledger_anchor /
+  scripts/publish_anchor.py in the private ActaSeal repo).
 Exit codes: 0 verified, 1 verification failed or packet unreadable,
 2 unable to run (missing 'cryptography').
 """
@@ -325,6 +330,48 @@ def verify_approver_snapshot(manifest, receipt, events, failures):
         )
 
 
+def verify_ledger_head_anchor(base, failures, anchors_path):
+    """Given an external anchor log (a jsonl file of {root_hash,
+    anchored_at, status, ...} records -- see
+    actaseal.ledger_anchor.FileAnchorBackend / scripts/publish_anchor.py),
+    confirms this packet's ledger_root_hash (acquisition.json) was
+    witnessed by some successful anchor entry. Optional: only runs when
+    --anchors PATH is passed on the command line -- a packet does not
+    ship its own anchor log, since anchoring is a separate, periodic
+    operator workflow, not part of packet capture. Silent no-op when
+    --anchors is not given, same posture as every other optional check
+    in this verifier."""
+    if anchors_path is None:
+        return
+    acquisition = _load_doc(base, "acquisition.json", "ACQUISITION_REPORT_MISSING", [])
+    root_hash = acquisition.get("ledger_root_hash") if acquisition else None
+    if not root_hash:
+        failures.append(
+            "ANCHOR_CHECK_NO_LEDGER_ROOT_HASH: acquisition.json carries no ledger_root_hash to check "
+            "against the supplied anchor log"
+        )
+        return
+    try:
+        lines = Path(anchors_path).read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        failures.append("ANCHOR_LOG_UNREADABLE: %s" % exc)
+        return
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if entry.get("root_hash") == root_hash and entry.get("status") == "OK":
+            return
+    failures.append(
+        "ANCHOR_ENTRY_NOT_FOUND: no successful anchor entry in %s witnesses this packet's "
+        "ledger_root_hash %r" % (anchors_path, root_hash)
+    )
+
+
 def verify_settlement_anchor(manifest, failures):
     """The settlement anchor block must be present -- absence of a
     settlement is itself stated as SETTLEMENT_UNANCHORED, never silent --
@@ -376,7 +423,23 @@ def main(argv):
         "ecdsa_sha256": ec.ECDSA(hashes.SHA256()),
     }
 
-    base = Path(argv[1]) if len(argv) > 1 else Path(__file__).resolve().parent
+    # --anchors PATH is an optional flag, stripped out before the
+    # positional packet_dir argument is resolved -- it can appear
+    # anywhere in argv (before or after packet_dir).
+    positional = []
+    anchors_path = None
+    args = list(argv[1:])
+    while args:
+        arg = args.pop(0)
+        if arg == "--anchors":
+            if not args:
+                print("UNABLE_TO_RUN: --anchors requires a path argument")
+                return 2
+            anchors_path = args.pop(0)
+        else:
+            positional.append(arg)
+
+    base = Path(positional[0]) if positional else Path(__file__).resolve().parent
     failures = []
     try:
         manifest, receipt, events = load_packet(base)
@@ -390,6 +453,7 @@ def main(argv):
     verify_authentication_docs(receipt, events, base, failures)
     verify_scope_conformance(manifest, receipt, events, failures)
     verify_approver_snapshot(manifest, receipt, events, failures)
+    verify_ledger_head_anchor(base, failures, anchors_path)
     verify_settlement_anchor(manifest, failures)
 
     if failures:

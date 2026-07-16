@@ -136,3 +136,52 @@ def test_verify_has_no_external_imports_beyond_cryptography():
     assert "requests" not in source
     assert "urllib" not in source
     assert "socket" not in source
+
+
+def test_anchors_flag_passes_when_root_hash_is_witnessed(tmp_path):
+    subprocess.run([sys.executable, str(GENERATOR), str(tmp_path)], check=True)
+    packet_dir = tmp_path / "demo-packet-unanchored"
+    acquisition = json.loads((packet_dir / "acquisition.json").read_text(encoding="utf-8"))
+    root_hash = acquisition["ledger_root_hash"]
+
+    anchors_path = tmp_path / "ledger-heads.jsonl"
+    anchors_path.write_text(
+        json.dumps({"backend": "file", "status": "OK", "root_hash": root_hash, "anchored_at": "2026-01-01T00:00:00+00:00"})
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(VERIFY_PY), str(packet_dir), "--anchors", str(anchors_path)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "VERIFIED" in result.stdout
+
+
+def test_anchors_flag_fails_when_root_hash_is_not_witnessed(tmp_path):
+    subprocess.run([sys.executable, str(GENERATOR), str(tmp_path)], check=True)
+    packet_dir = tmp_path / "demo-packet-unanchored"
+
+    anchors_path = tmp_path / "ledger-heads.jsonl"
+    anchors_path.write_text(
+        json.dumps({"backend": "file", "status": "OK", "root_hash": "not-the-right-hash", "anchored_at": "2026-01-01T00:00:00+00:00"})
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(VERIFY_PY), str(packet_dir), "--anchors", str(anchors_path)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1
+    assert "ANCHOR_ENTRY_NOT_FOUND" in result.stdout
+
+
+def test_no_anchors_flag_skips_the_check_silently(tmp_path):
+    subprocess.run([sys.executable, str(GENERATOR), str(tmp_path)], check=True)
+    result = _run_verify(tmp_path / "demo-packet-unanchored")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "ANCHOR" not in result.stdout
