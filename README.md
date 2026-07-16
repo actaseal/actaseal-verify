@@ -37,6 +37,12 @@ python verify.py demo/demo-packet-unanchored
 python verify.py demo/demo-packet-anchored   # includes a rail settlement anchor
 ```
 
+Or try it entirely in your browser, no install: **[tamper_demo/](tamper_demo/index.html)**
+loads a real signed packet, lets you edit any field, and re-verifies live as you type --
+break the hash chain or the signature and watch it turn red immediately. Nothing is sent
+anywhere; it's a JS port of the same checks (`tamper_demo/verify_min.js`), using the
+browser's native WebCrypto Ed25519 support.
+
 ## Why "zero-import" is the whole point
 
 `verify.py` has no dependency on ActaSeal's code, config, database, or
@@ -103,6 +109,7 @@ verify.py                    the verifier -- the only file that matters at verif
 generate_demo_packet.py      builds the two demo packets below, from scratch, standalone
 demo/demo-packet-unanchored/ a valid packet with no settlement anchor
 demo/demo-packet-anchored/   a valid packet with a payment-rail settlement anchor
+tamper_demo/                 in-browser, editable, live-verifying demo (see above)
 SPEC.md                      packet format reference
 tests/                       pytest suite: valid packets pass, tampered ones fail loudly
 ```

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ActaSeal -- Tamper &amp; Verify Demo</title>
+<style>
+  :root {
+    --bg: #0b0d10; --bg-raised: #14171c; --text: #e6e6e6; --dim: #9aa4b2;
+    --border: #262b33; --ok: #2fbf71; --fail: #e5484d; --accent: #5b8def;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text); font-family: -apple-system, Helvetica, Arial, sans-serif;
+    margin: 0; padding: 2em; line-height: 1.5;
+  }
+  h1 { font-size: 1.4em; margin-bottom: 0.2em; }
+  .subtitle { color: var(--dim); font-size: 0.9em; margin-bottom: 1.5em; max-width: 700px; }
+  .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5em; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .panel { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 8px; padding: 1em; }
+  .panel h2 { font-size: 0.95em; margin: 0 0 0.6em 0; color: var(--dim); text-transform: uppercase; letter-spacing: 0.04em; }
+  textarea {
+    width: 100%; min-height: 160px; background: #0e1013; color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px;
+    resize: vertical;
+  }
+  .status-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 1em; }
+  .badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 0.85em; }
+  .badge.ok { background: rgba(47,191,113,0.15); color: var(--ok); }
+  .badge.fail { background: rgba(229,72,77,0.15); color: var(--fail); }
+  .badge.pending { background: rgba(154,164,178,0.15); color: var(--dim); }
+  ul.failures { list-style: none; margin: 0; padding: 0; }
+  ul.failures li {
+    color: var(--fail); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px;
+    padding: 4px 0; border-bottom: 1px solid var(--border);
+  }
+  button {
+    background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 8px 16px;
+    font-size: 0.9em; cursor: pointer; margin-top: 0.5em;
+  }
+  button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .note { color: var(--dim); font-size: 0.85em; margin-top: 1em; }
+</style>
+</head>
+<body>
+
+<h1>ActaSeal -- Tamper &amp; Verify Demo</h1>
+<p class="subtitle">
+  A real, signed ActaSeal dispute packet (manifest, receipt, ledger slice), loaded below.
+  Edit any field and verification re-runs live, entirely in your browser -- no server, no
+  network request, nothing sent anywhere. Break the hash chain or the signature and watch
+  it turn red immediately. This exercises the same checks
+  <a href="../verify.py" style="color:var(--accent)">verify.py</a> runs offline, ported to
+  JavaScript (<a href="verify_min.js" style="color:var(--accent)">verify_min.js</a>) using
+  the browser's native WebCrypto Ed25519 support -- no bundled crypto library.
+</p>
+
+<div class="status-bar">
+  <span id="status-badge" class="badge pending">Loading…</span>
+  <button id="reset-btn" class="secondary">Reset to original packet</button>
+</div>
+
+<div class="layout">
+  <div class="panel">
+    <h2>manifest.json</h2>
+    <textarea id="manifest-input" spellcheck="false"></textarea>
+  </div>
+  <div class="panel">
+    <h2>receipt.json</h2>
+    <textarea id="receipt-input" spellcheck="false"></textarea>
+  </div>
+  <div class="panel" style="grid-column: 1 / -1">
+    <h2>ledger_slice.ndjson (one event per line, JSON array here for editing)</h2>
+    <textarea id="events-input" spellcheck="false" style="min-height: 220px"></textarea>
+  </div>
+  <div class="panel" style="grid-column: 1 / -1">
+    <h2>Verification result</h2>
+    <ul class="failures" id="failures-list"></ul>
+  </div>
+</div>
+
+<p class="note">
+  This page checks chain integrity and the Ed25519 receipt signature only -- the subset of
+  verify.py's checks meaningful without the rest of a real dispute packet (authentication
+  docs, settlement anchor, etc). For a full, authoritative check of a real packet, download
+  it and run <code>python verify.py</code> offline.
+</p>
+
+<script src="demo_data.js"></script>
+<script src="verify_min.js"></script>
+<script>
+(function () {
+  const manifestInput = document.getElementById("manifest-input");
+  const receiptInput = document.getElementById("receipt-input");
+  const eventsInput = document.getElementById("events-input");
+  const statusBadge = document.getElementById("status-badge");
+  const failuresList = document.getElementById("failures-list");
+
+  function loadOriginal() {
+    manifestInput.value = JSON.stringify(DEMO_PACKET.manifest, null, 2);
+    receiptInput.value = JSON.stringify(DEMO_PACKET.receipt, null, 2);
+    eventsInput.value = JSON.stringify(DEMO_PACKET.events, null, 2);
+  }
+
+  async function runVerification() {
+    let manifest, receipt, events;
+    try {
+      manifest = JSON.parse(manifestInput.value);
+      receipt = JSON.parse(receiptInput.value);
+      events = JSON.parse(eventsInput.value);
+    } catch (exc) {
+      statusBadge.className = "badge fail";
+      statusBadge.textContent = "INVALID JSON";
+      failuresList.innerHTML = "";
+      const li = document.createElement("li");
+      li.textContent = "JSON_PARSE_ERROR: " + exc.message;
+      failuresList.appendChild(li);
+      return;
+    }
+
+    statusBadge.className = "badge pending";
+    statusBadge.textContent = "Verifying…";
+
+    const result = await ActaSealVerifyMin.verifyPacket(manifest, receipt, events);
+
+    statusBadge.className = "badge " + (result.verified ? "ok" : "fail");
+    statusBadge.textContent = result.verified ? "VERIFIED" : "VERIFICATION FAILED";
+    failuresList.innerHTML = "";
+    for (const failure of result.failures) {
+      const li = document.createElement("li");
+      li.textContent = failure;
+      failuresList.appendChild(li);
+    }
+  }
+
+  [manifestInput, receiptInput, eventsInput].forEach((el) => {
+    el.addEventListener("input", () => { runVerification(); });
+  });
+  document.getElementById("reset-btn").addEventListener("click", () => {
+    loadOriginal();
+    runVerification();
+  });
+
+  loadOriginal();
+  runVerification();
+})();
+</script>
+
+</body>
+</html>
