@@ -1,0 +1,8 @@
+{
+  "exit_code": 1,
+  "must_include_failure_substrings": [
+    "RECEIPT_SIGNATURE_INVALID"
+  ],
+  "proves": "A receipt whose signature bytes were altered fails Ed25519 verification against the manifest's pinned public key, even though every other field is untouched.",
+  "verified": false
+}

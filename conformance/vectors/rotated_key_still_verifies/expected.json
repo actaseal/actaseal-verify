@@ -1,0 +1,11 @@
+{
+  "issued_after_rotation": {
+    "exit_code": 0,
+    "verified": true
+  },
+  "issued_before_rotation": {
+    "exit_code": 0,
+    "verified": true
+  },
+  "proves": "Each packet's manifest.json pins the public key that actually signed its receipt. Verifying issued_before_rotation/ and issued_after_rotation/ -- signed under two different keys -- both succeed, because verify.py's trust root is per-packet, not a single hardcoded key: rotating the operator's live signing key does not retroactively invalidate receipts issued under the key that was live when they were signed."
+}
