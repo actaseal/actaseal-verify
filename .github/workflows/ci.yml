@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  release:
+    types: [published]
 
 jobs:
   test:
@@ -23,3 +25,34 @@ jobs:
         run: |
           python verify.py demo/demo-packet-unanchored
           python verify.py demo/demo-packet-anchored
+
+      - name: Generate SBOM (CycloneDX)
+        if: matrix.python-version == '3.12'
+        run: |
+          pip install cyclonedx-bom
+          cyclonedx-py requirements requirements.txt -o sbom.cdx.json
+
+      - name: Upload SBOM
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
+
+  attach-sbom-to-release:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install cyclonedx-bom
+      - name: Generate SBOM (CycloneDX)
+        run: cyclonedx-py requirements requirements.txt -o sbom.cdx.json
+      - name: Attach SBOM to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: sbom.cdx.json

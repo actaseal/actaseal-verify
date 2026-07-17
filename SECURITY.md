@@ -23,6 +23,11 @@ Email: security@actaseal.com with a description and, if possible, a minimal
 packet reproducing the issue. We aim to acknowledge within 3 business
 days.
 
+(If security@actaseal.com is not yet live when you try it -- this alias
+was set up ahead of the mailbox being provisioned -- open a private
+[GitHub security advisory](https://github.com/actaseal/actaseal-verify/security/advisories/new)
+against this repo instead; also see `.well-known/security.txt`.)
+
 ## Scope
 
 In scope: `verify.py`, `SPEC.md` (as the contract `verify.py` implements),
@@ -31,3 +36,18 @@ misleadingly "valid" demo packet).
 
 Out of scope: the private ActaSeal gateway/policy/ledger product that
 produces real packets -- this repo does not contain it.
+
+## Vulnerability disclosure (VEX)
+
+This repo does not yet publish machine-readable VEX (Vulnerability
+Exploitability eXchange) statements. Until it does, vulnerability status
+for this repo's own code and its declared dependency (`cryptography`) is
+communicated through:
+
+- GitHub Security Advisories on this repository (also visible via the
+  repo's Security tab), for issues in `verify.py`/`generate_demo_packet.py`
+  themselves;
+- the SBOM (CycloneDX, `sbom.cdx.json`) attached to each GitHub release,
+  which names the exact dependency versions that release ships, so a
+  consumer can check them against their own vulnerability feed even
+  before a formal VEX statement exists here.
