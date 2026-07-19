@@ -125,6 +125,10 @@ def verify_events(manifest, events, failures):
 def verify_receipt(manifest, receipt, events, failures, crypto):
     unsigned = dict(receipt)
     signature = unsigned.pop("signature", "")
+    # tsa_anchor is stapled onto a receipt AFTER signing -- the signature
+    # covers the receipt's signing bytes, which exclude it -- so it must
+    # be excluded here too, the same way "signature" itself is.
+    unsigned.pop("tsa_anchor", None)
     algorithm = receipt.get("algorithm") or ALGORITHM_ED25519
     try:
         data = canonical_dumps(unsigned).encode("utf-8")

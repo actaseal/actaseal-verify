@@ -129,6 +129,31 @@ def test_foreign_action_scope_evaluated_event_does_not_leak_into_verdict(tmp_pat
     assert "VERIFIED" in result.stdout
 
 
+def test_tsa_anchored_receipt_still_passes_signature_check(tmp_path):
+    """Mirrors a bug fixed in actaseal's private repo (T1, tsa_anchor
+    stapling): tsa_anchor is added onto a receipt AFTER signing, so it
+    must never be part of what gets hashed to check the signature.
+    verify_receipt here only popped "signature" before hashing, not
+    "tsa_anchor" -- hashing a superset of what was actually signed and
+    failing every receipt that carries the field (which is every
+    receipt whose signer emits it, even as null)."""
+    subprocess.run([sys.executable, str(GENERATOR), str(tmp_path)], check=True)
+    packet_dir = tmp_path / "demo-packet-unanchored"
+
+    receipt_path = packet_dir / "receipt.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["tsa_anchor"] = {
+        "tsa_url": "https://tsa.example/timestamp",
+        "token": "deadbeef",
+        "genTime": "2026-07-17T00:00:05+00:00",
+    }
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
+    result = _run_verify(packet_dir)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "VERIFIED" in result.stdout
+
+
 def test_verify_has_no_external_imports_beyond_cryptography():
     source = VERIFY_PY.read_text(encoding="utf-8")
     assert "import actaseal" not in source
