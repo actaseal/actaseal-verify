@@ -1,0 +1,83 @@
+<!doctype html>
+<title>Notarization/anchoring graveyard — lessons learned — actaseal-verify</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A respectful look at prior blockchain-notarization and document-timestamping projects that shut down or pivoted, and what that means for a longevity-focused evidence system.">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 3rem auto; padding: 0 1.5rem; color: #1a1d21; line-height: 1.65; }
+  h2 { margin-top: 2rem; }
+  .lesson { background: #eaf5ef; border-left: 3px solid #1f6f4a; padding: 0.8rem 1rem; margin: 1rem 0; }
+  a { color: #1f6f4a; }
+</style>
+
+<h1>The notarization/anchoring graveyard: lessons, not schadenfreude</h1>
+
+<p>Several blockchain-based document-notarization and data-anchoring
+projects from the 2015-2020 era shut down, pivoted, or were acquired
+and quietly folded into something else. This page is a respectful
+look at what changed and why — the point is to be honest about what a
+longevity-focused evidence system needs to survive, not to mock
+anyone's shipped work.</p>
+
+<h2>Factom</h2>
+<p>Factom built a blockchain-anchoring layer for arbitrary data
+integrity (its Entry Credit model recorded hashes into its own chain,
+itself periodically anchored into Bitcoin). The project wound down its
+original foundation-and-token model in the early 2020s; the underlying
+technology and team continued in different forms
+(Factom Protocol / later work under different branding). Widely
+reported at the time as a token-economics and go-to-market
+sustainability problem more than a cryptographic one — the anchoring
+mechanism itself wasn't shown to be broken.</p>
+
+<h2>Stampd / similar document-timestamping startups</h2>
+<p>Several smaller blockchain-timestamping products from the same era
+(cheap, simple "hash your document into a blockchain" tools) did not
+survive as standalone businesses — commonly because the value
+proposition (a timestamp proof) was thin on its own without the
+surrounding identity, authorization, and admissibility context a real
+dispute or audit actually needs.</p>
+
+<div class="lesson">
+<strong>Lesson 1 — a timestamp alone is not evidence.</strong> "This
+hash existed at time T" answers one narrow question. It says nothing
+about WHO produced the data, WHETHER they were authorized to, or
+whether the surrounding chain of custody holds up under FRE 901/902-style
+scrutiny. ActaSeal's dispute packets bundle acquisition/chain-of-custody/
+authentication documents alongside the hash chain specifically because
+a bare timestamp was never the actual product a dispute needs.
+</div>
+
+<div class="lesson">
+<strong>Lesson 2 — dependency on a single external chain/service is a
+longevity risk.</strong> A notarization product whose entire value
+depends on one blockchain's continued operation (or one company's
+continued operation) inherits that chain's or company's own
+sustainability risk. See <code>docs/trust/multi_tsa_failover.md</code>
+(private repo) and this repository's own multi-anchor posture
+(RFC 3161 pool + transparency log, never a single point of witness) —
+built as a direct response to this exact failure mode.
+</div>
+
+<div class="lesson">
+<strong>Lesson 3 — token/business-model sustainability is a separate
+risk from cryptographic soundness.</strong> Several of these projects'
+underlying cryptography was never shown to be broken; what failed was
+the business wrapped around it. See
+<code>docs/trust/termination_plan.md</code> (private repo) for how
+this system is designed so that verification survives the operating
+company ceasing to exist — the receipt-signing key was never held by
+the company to begin with, and the standalone verifier
+(<code>verify.py</code>, this repository) has zero dependency on any
+company's continued operation.
+</div>
+
+<h2>Why identity + authorization + admissibility ≠ a notary chain</h2>
+<p>A blockchain notary answers "did this hash exist at time T."
+ActaSeal answers a different, larger question: "was this specific
+agent authorized, under this specific policy, with this specific
+evidence, to take this specific money-touching action — and can that
+be proven independently later." The timestamp/anchor machinery is one
+input into that larger evidentiary record, not the whole product.</p>
+
+<p><a href="/">&larr; Back</a></p>

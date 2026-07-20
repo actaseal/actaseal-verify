@@ -1,0 +1,41 @@
+<!doctype html>
+<title>ActaSeal vs. plain logs vs. DIY — actaseal-verify</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="An honest comparison of ActaSeal's tamper-evident receipt/ledger approach against plain application logs, roll-your-own hash chains, and other notarization tools.">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 760px; margin: 3rem auto; padding: 0 1.5rem; color: #1a1d21; line-height: 1.6; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; margin: 1.5rem 0; }
+  th, td { border: 1px solid #dde1e5; padding: 0.5rem 0.7rem; text-align: left; vertical-align: top; }
+  th { background: #f6f7f8; }
+  code { background: #f6f7f8; padding: 0.1rem 0.3rem; border-radius: 3px; }
+  .gap { color: #8a5a1f; }
+  a { color: #1f6f4a; }
+</style>
+
+<h1>ActaSeal vs. alternatives</h1>
+<p>An honest comparison, not a sales pitch. Sourced only from each
+alternative's own public documentation, current as of when this page
+was written — verify against their current docs before relying on any
+specific claim below. If we've gotten something about a competitor
+wrong, <a href="https://github.com/actaseal/actaseal-verify/issues">open an issue</a>.</p>
+
+<table>
+<tr><th></th><th>Plain application logs</th><th>Roll-your-own hash chain</th><th>ActaSeal</th></tr>
+<tr><td><strong>Tamper-evidence</strong></td><td>None — a log line can be edited or deleted with no trace.</td><td>Possible if built correctly, but this is exactly the kind of primitive that's easy to get subtly wrong (chain-start binding, replay attacks, torn-write recovery) without dedicated engineering investment.</td><td>Built-in: hash-chained ledger, verified via <code>actaseal.ledger.events.verify_event_chain</code>, with torn-write recovery tested against real crash scenarios.</td></tr>
+<tr><td><strong>Independent witness (can't be backdated by the signer)</strong></td><td>No.</td><td class="gap">Only if you separately build RFC 3161/transparency-log integration — most DIY chains don't.</td><td>Built-in: RFC 3161 TSA anchoring with multi-provider failover, transparency-log inclusion proofs.</td></tr>
+<tr><td><strong>Offline, zero-trust verification by a third party</strong></td><td>No — requires trusting whoever holds the logs.</td><td class="gap">Depends entirely on whether you ship a standalone verifier alongside the chain — most internal tools don't.</td><td>Yes: a zero-dependency-beyond-<code>cryptography</code> standalone verifier (this repository) ships with every packet.</td></tr>
+<tr><td><strong>Legal admissibility posture (FRE 901/902-style chain of custody)</strong></td><td>No structured support.</td><td class="gap">Not typically built — this is specialized, not a byproduct of a hash chain alone.</td><td>Built-in: acquisition report, chain-of-custody doc, authentication statement in every dispute packet.</td></tr>
+<tr><td><strong>Policy-decision gate (block/require-approval before an action executes)</strong></td><td>No — logs are after-the-fact.</td><td>No — a hash chain alone doesn't gate anything.</td><td>Yes — this is ActaSeal's core function; the ledger records the gate's own decisions, it doesn't replace them.</td></tr>
+<tr><td><strong>Setup cost</strong></td><td>Lowest — usually already exists.</td><td>Real engineering investment to build correctly and keep correct.</td><td>A real dependency to adopt and operate — not free, but the tamper-evidence/witness/admissibility/verifier work is already done.</td></tr>
+</table>
+
+<h2>Where plain logs or a DIY chain are the right call</h2>
+<p>If you don't need independent-witness tamper-evidence or a
+policy-decision gate — e.g. internal debugging, non-disputed
+operational telemetry — plain logs are simpler and cheaper, correctly.
+ActaSeal is built for the specific case where an agent's money-touching
+action needs a decision that can be independently verified later,
+possibly in a dispute or audit context.</p>
+
+<p><a href="/">&larr; Back</a></p>

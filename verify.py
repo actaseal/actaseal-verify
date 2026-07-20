@@ -89,10 +89,17 @@ def canonical_hash(value):
 def load_packet(base):
     manifest = json.loads((base / "manifest.json").read_text(encoding="utf-8"))
     receipt = json.loads((base / "receipt.json").read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest.json must be a JSON object, got %s" % type(manifest).__name__)
+    if not isinstance(receipt, dict):
+        raise ValueError("receipt.json must be a JSON object, got %s" % type(receipt).__name__)
     events = []
     for line in (base / "ledger_slice.ndjson").read_text(encoding="utf-8").splitlines():
         if line.strip():
-            events.append(json.loads(line))
+            event = json.loads(line)
+            if not isinstance(event, dict):
+                raise ValueError("each ledger_slice.ndjson line must be a JSON object, got %s" % type(event).__name__)
+            events.append(event)
     return manifest, receipt, events
 
 

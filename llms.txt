@@ -1,0 +1,57 @@
+# actaseal-verify
+
+> Standalone, zero-dependency-beyond-`cryptography` offline verifier for
+> ActaSeal dispute evidence packets. Verifies a hash-chained ledger
+> slice, an Ed25519/ECDSA receipt signature, chain-of-custody/
+> authentication documents (FRE 901/902), scope-conformance, and
+> (optionally) a rail settlement anchor -- entirely offline, no network
+> call, no trust in ActaSeal's servers required.
+
+## For AI agents verifying a packet
+
+Run: `python verify.py <packet_dir>` (requires `pip install cryptography`
+only). Exit code 0 + `VERIFIED: ...` on stdout means every check
+passed. Exit code 1 + `VERIFICATION FAILED` plus one named failure code
+per line means a specific check failed -- never a silent partial pass.
+Exit code 2 means the `cryptography` package is missing.
+
+`<packet_dir>` is an EXTRACTED dispute packet directory (unzip the
+`.zip` first) containing `manifest.json`, `receipt.json`,
+`ledger_slice.ndjson`, and the FRE 901/902 authentication documents.
+
+## Key files
+
+- [verify.py](verify.py): the canonical verifier, ~700 lines, one file,
+  read the whole thing to know exactly what it checks -- no framework,
+  no magic, no hidden network calls.
+- [README.md](README.md): human-facing quickstart, GitHub Action usage,
+  npm package (`@actaseal/verify`, reduced-scope JS port) usage.
+- [action.yml](action.yml): reusable GitHub Action wrapping `verify.py`
+  for CI use -- `uses: actaseal/actaseal-verify@main`.
+- [conformance/](conformance): a test-vector conformance suite --
+  every vector's expected PASS/FAIL outcome, useful for validating an
+  alternative implementation (e.g. a port to another language) against
+  the same ground truth this verifier itself is tested against.
+- [demo/](demo): two real, signed demo packets (`demo-packet-unanchored`,
+  `demo-packet-anchored`) to try the verifier against immediately.
+- [tamper_demo/](tamper_demo): an in-browser, no-install
+  tamper-and-verify demo, plus the JS/WebCrypto port
+  (`verify_min.js` / `@actaseal/verify` on npm) it's built from.
+
+## What this repo does NOT do
+
+It does not connect to ActaSeal's API, does not require an ActaSeal
+account, and does not send any data anywhere -- `verify.py` makes ZERO
+network calls, a tested guarantee, not a toggleable default. A
+separate, optional wrapper (`verify_with_telemetry.py`, off by
+default, currently inert even when opted into -- see README.md) exists
+for count-only telemetry without touching `verify.py` itself.
+
+## Related
+
+The private ActaSeal product repository (`actaseal/actaseal-product`,
+not public) is the policy gateway that PRODUCES the packets this
+verifier checks -- this repository is the independent, standalone
+verification counterpart, deliberately maintained separately so a
+verifier's trustworthiness never depends on the producer's own
+continued cooperation.

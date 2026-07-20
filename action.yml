@@ -1,0 +1,43 @@
+name: "ActaSeal packet verify"
+description: "Verifies an ActaSeal dispute evidence packet (extracted directory) using the canonical, zero-dependency-beyond-cryptography verify.py from this repository. Fails the step if verification fails."
+author: "ActaSeal"
+
+inputs:
+  packet-dir:
+    description: "Path to the extracted dispute evidence packet directory (containing manifest.json, receipt.json, ledger_slice.ndjson, etc.)"
+    required: true
+  anchors:
+    description: "Optional path to a transparency anchor log (jsonl) to check the packet's ledger_root_hash against"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install verify.py's one dependency
+      shell: bash
+      run: pip install cryptography
+
+    - name: Checkout actaseal-verify (for verify.py)
+      uses: actions/checkout@v4
+      with:
+        repository: actaseal/actaseal-verify
+        path: __actaseal_verify__
+
+    - name: Run verify.py
+      shell: bash
+      run: |
+        ARGS="${{ inputs.packet-dir }}"
+        if [ -n "${{ inputs.anchors }}" ]; then
+          ARGS="$ARGS --anchors ${{ inputs.anchors }}"
+        fi
+        python __actaseal_verify__/verify.py $ARGS
+
+branding:
+  icon: "shield"
+  color: "blue"

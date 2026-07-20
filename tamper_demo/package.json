@@ -1,0 +1,32 @@
+{
+  "name": "@actaseal/verify",
+  "version": "0.1.0",
+  "description": "Minimal, zero-dependency JS/WebCrypto port of ActaSeal's offline dispute-packet verifier (chain integrity + Ed25519 receipt signature only -- see README for exact scope and what it does NOT check).",
+  "main": "verify_min.js",
+  "files": [
+    "verify_min.js",
+    "README.npm.md"
+  ],
+  "engines": {
+    "node": ">=19"
+  },
+  "keywords": [
+    "actaseal",
+    "verify",
+    "receipt",
+    "ed25519",
+    "webcrypto",
+    "tamper-evident"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/actaseal/actaseal-verify.git",
+    "directory": "tamper_demo"
+  },
+  "homepage": "https://github.com/actaseal/actaseal-verify#readme",
+  "author": "ActaSeal",
+  "publishConfig": {
+    "access": "public"
+  }
+}

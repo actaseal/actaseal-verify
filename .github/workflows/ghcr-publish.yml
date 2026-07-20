@@ -1,0 +1,54 @@
+name: Publish verifier image to GHCR
+
+# PROD11(d): committed and ready, but does NOT run automatically on
+# every push -- publishing a container image is a release action, not
+# a CI check. Triggered manually (workflow_dispatch) or on a GitHub
+# release. Needs no secrets beyond the automatically-provided
+# GITHUB_TOKEN (GHCR authenticates via that for same-org pushes) --
+# but actually pushing still requires the repository's Actions
+# "Read and write permissions" setting for GITHUB_TOKEN to be enabled
+# (Settings -> Actions -> General -> Workflow permissions), which is a
+# repo-owner action, not something this workflow file can set itself.
+# See USER_ACTIONS.md.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: ghcr.io/actaseal/actaseal-verify
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=manual-$(date +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
+            ${{ env.IMAGE_NAME }}:latest

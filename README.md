@@ -43,6 +43,56 @@ break the hash chain or the signature and watch it turn red immediately. Nothing
 anywhere; it's a JS port of the same checks (`tamper_demo/verify_min.js`), using the
 browser's native WebCrypto Ed25519 support.
 
+## Use it in CI
+
+`action.yml` in this repository is a reusable GitHub Action:
+
+```yaml
+- uses: actaseal/actaseal-verify@main
+  with:
+    packet-dir: ./extracted-packet
+    # anchors: ./anchors.jsonl   # optional
+```
+
+Fails the step (non-zero exit) if the packet doesn't verify.
+
+## Use it from Node / a browser
+
+`@actaseal/verify` (`tamper_demo/`, `npm install @actaseal/verify`) is a
+minimal, zero-dependency WebCrypto port covering chain integrity and
+Ed25519 receipt signatures only -- see `tamper_demo/README.npm.md` for
+its exact (reduced) scope before relying on it for anything beyond a
+quick client-side check. The real `verify.py` above is the canonical,
+full-scope verifier.
+
+## Telemetry: opt-in, count-only, off by default, NOT in verify.py itself
+
+`verify.py` makes zero network calls, period -- that's a real,
+tested guarantee (`tests/test_verify_demo_packet.py::
+test_verify_has_no_external_imports_beyond_cryptography`), not a
+default that can be toggled. Telemetry lives entirely in a separate,
+optional wrapper instead: `verify_with_telemetry.py` calls `verify.py`'s
+own `main()` completely unchanged, and only after that call returns
+does it (optionally) send a ping -- `verify.py` itself never imports
+`urllib` or knows telemetry exists.
+
+```bash
+python verify_with_telemetry.py --telemetry <packet_dir>
+```
+
+Even with `--telemetry` passed, the wrapper ships with
+`TELEMETRY_ENDPOINT` set to an empty string, so it's currently an inert
+no-op regardless -- nothing is transmitted until a maintainer
+deliberately sets a real endpoint in a future release. When/if that
+happens, a ping sends exactly three fields: the wrapper's own version
+string, the verification outcome (`PASS`/`FAIL`), and a failure count
+(derived by counting verify.py's own printed failure lines, never by
+inspecting packet content) -- never a filename, never anything about
+the specific receipt or ledger being verified. Best-effort only: any
+network failure is silently swallowed and never affects the exit code
+or printed result, which are always exactly what plain `python verify.py`
+would have produced.
+
 ## Why "zero-import" is the whole point
 
 `verify.py` has no dependency on ActaSeal's code, config, database, or

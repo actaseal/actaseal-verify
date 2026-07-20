@@ -1,0 +1,75 @@
+<!doctype html>
+<title>Spec-freeze guarantee — actaseal-verify</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="What 'the packet format is frozen per major version' actually means, and where the field-level evidence for that claim lives.">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 3rem auto; padding: 0 1.5rem; color: #1a1d21; line-height: 1.65; }
+  code { background: #f6f7f8; padding: 0.1rem 0.3rem; border-radius: 3px; }
+  .claim { background: #eaf5ef; border-left: 3px solid #1f6f4a; padding: 0.9rem 1.1rem; margin: 1.2rem 0; }
+  a { color: #1f6f4a; }
+</style>
+
+<h1>Spec-freeze guarantee: verify forever</h1>
+
+<div class="claim">
+<strong>The dispute packet format, at a given <code>schema_version</code>
+(e.g. <code>dispute_packet.v1</code>), is frozen.</strong> A packet
+built today that verifies against <code>verify.py</code> today will
+still verify against a future <code>verify.py</code> that still
+understands <code>dispute_packet.v1</code> -- new fields get added
+additively, in a new schema version, never by silently changing what
+an existing version's fields mean.
+</div>
+
+<h2>What this actually rests on</h2>
+
+<ul>
+<li><strong>`manifest.json`'s own <code>schema_version</code> field is
+checked, not assumed.</strong> `verify.py`'s <code>verify_events</code>
+function rejects a packet whose <code>schema_version</code> doesn't
+match the specific version this verifier build understands
+(<code>MANIFEST_SCHEMA_MISMATCH</code>) -- see <code>SPEC.md</code> and
+`verify.py`'s own <code>SCHEMA_VERSION</code> constant. This is what
+makes "frozen per version" an enforced property, not just a promise: a
+verifier build can never silently apply the wrong version's rules to a
+packet.</li>
+<li><strong>Every packet embeds its own trust root.</strong>
+<code>manifest.json</code>'s <code>receipt_public_key_hex</code> means
+no external key registry or live service lookup is ever required to
+verify a packet -- a decade-old packet verifies exactly the same way a
+today packet does, with nothing to have gone stale in the meantime
+except your own confidence that the embedded key really is the
+signer's (a comparison you make once, out of band, same as any public
+key).</li>
+<li><strong>The verifier itself is offline and dependency-light.</strong>
+<code>verify.py</code> needs only the <code>cryptography</code> package
+-- a decades-old packet still verifies as long as SOME version of that
+one library, or a compatible re-implementation, is available. This is
+a real, if narrow, dependency-continuity risk, stated honestly rather
+than glossed over: "verify forever" assumes Ed25519/ECDSA verification
+itself remains implementable, not that this exact file survives
+unchanged forever.</li>
+</ul>
+
+<h2>What a NEW major schema version means</h2>
+
+<p>A breaking change to what a field means, or to which fields are
+required, gets a NEW <code>schema_version</code> string (e.g. eventually
+<code>dispute_packet.v2</code>) -- never a silent redefinition of
+<code>dispute_packet.v1</code>. A verifier that understands both
+versions can check either kind of packet correctly; a verifier that
+only understands v1 will cleanly reject a v2 packet (rather than
+silently mis-verifying it) because the schema_version check fails
+closed.</p>
+
+<h2>Cross-reference</h2>
+
+<p>See the private ActaSeal product repository's
+<code>docs/trust/termination_plan.md</code> and
+<code>docs/continuity/dead_man_switch.md</code> for the longer-horizon
+version of this same guarantee -- what happens to verifiability if
+ActaSeal itself ceases to operate, not just what a schema version
+means.</p>
+
+<p><a href="/">&larr; Back</a></p>
