@@ -54,6 +54,13 @@ from pathlib import Path
 ALGORITHM_ED25519 = "ed25519"
 ALGORITHM_ECDSA_P256_SHA256 = "ecdsa-p256-sha256"
 
+# Continuity-checkpoint failure codes (T8, ONESHOT-4 batch 3). Must stay
+# in lock-step with actaseal.anchoring's constants of the same names.
+ANCHOR_INCLUSION_PROOF_INVALID = "ANCHOR_INCLUSION_PROOF_INVALID"
+ANCHOR_CONSISTENCY_PROOF_INVALID = "ANCHOR_CONSISTENCY_PROOF_INVALID"
+ANCHOR_CHECKPOINT_MISMATCH = "ANCHOR_CHECKPOINT_MISMATCH"
+STH_SIGNATURE_INVALID = "STH_SIGNATURE_INVALID"
+
 SCHEMA_VERSION = "dispute_packet.v1"
 EVENT_ID_BASIS = "ledger_event_id.v1"
 EVENT_MATERIAL_FIELDS = (
@@ -169,6 +176,218 @@ def _load_doc(base, name, missing_code, failures):
     except Exception as exc:
         failures.append("%s: unreadable %s: %s" % (missing_code, name, exc))
         return None
+
+
+def _leaf_hash(data):
+    return hashlib.sha256(b"\x00" + data).digest()
+
+
+def _node_hash(left, right):
+    return hashlib.sha256(b"\x01" + left + right).digest()
+
+
+def _root_from_audit_path(leaf, index, tree_size, path):
+    """RFC 9162 section 2.1.3.2 inclusion-proof verification. Must stay
+    in lock-step with actaseal.anchoring._root_from_audit_path."""
+    if index < 0 or index >= tree_size:
+        raise ValueError("leaf index outside claimed tree size")
+    fn, sn = index, tree_size - 1
+    node = leaf
+    for sibling in path:
+        if sn == 0:
+            raise ValueError("audit path longer than the claimed tree allows")
+        if fn % 2 == 1 or fn == sn:
+            node = _node_hash(sibling, node)
+            if fn % 2 == 0:
+                while fn % 2 == 0 and fn != 0:
+                    fn >>= 1
+                    sn >>= 1
+        else:
+            node = _node_hash(node, sibling)
+        fn >>= 1
+        sn >>= 1
+    if sn != 0:
+        raise ValueError("audit path shorter than the claimed tree requires")
+    return node
+
+
+def _largest_pow2_lt(n):
+    split = 1
+    while split * 2 < n:
+        split *= 2
+    return split
+
+
+def _verify_consistency_nodes(m, n, proof):
+    """Must stay in lock-step with actaseal.anchoring._verify_consistency_nodes."""
+    if m == n:
+        h = proof[0]
+        return h, h
+    k = _largest_pow2_lt(n)
+    if m <= k:
+        old_h, new_h_left = _verify_consistency_nodes(m, k, proof[:-1])
+        new_h = _node_hash(new_h_left, proof[-1])
+    else:
+        old_h_right, new_h_right = _verify_consistency_nodes(m - k, n - k, proof[:-1])
+        old_h = _node_hash(proof[-1], old_h_right)
+        new_h = _node_hash(proof[-1], new_h_right)
+    return old_h, new_h
+
+
+def _sth_signing_bytes(sth):
+    return canonical_dumps(
+        {
+            "log_id": sth.get("log_id"),
+            "tree_size": sth.get("tree_size"),
+            "root_hash": sth.get("root_hash"),
+            "timestamp": sth.get("timestamp"),
+        }
+    ).encode("utf-8")
+
+
+def _verify_sth_signature(sth, public_key_hex, crypto):
+    """Must stay in lock-step with actaseal.anchoring.verify_tree_head /
+    actaseal.receipt.verify_signature_bytes's Ed25519/ECDSA branches."""
+    algorithm = sth.get("algorithm") or ALGORITHM_ED25519
+    try:
+        data = _sth_signing_bytes(sth)
+        signature_bytes = bytes.fromhex(sth.get("signature", ""))
+        if algorithm == ALGORITHM_ED25519:
+            public_key = crypto["ed25519_public_key_cls"].from_public_bytes(bytes.fromhex(public_key_hex))
+            public_key.verify(signature_bytes, data)
+        elif algorithm == ALGORITHM_ECDSA_P256_SHA256:
+            ecdsa_public_key = crypto["load_der_public_key"](bytes.fromhex(public_key_hex))
+            ecdsa_public_key.verify(signature_bytes, data, crypto["ecdsa_sha256"])
+        else:
+            return False
+    except (
+        crypto["invalid_signature_error"],
+        crypto["unsupported_algorithm_error"],
+        ValueError,
+        KeyError,
+        TypeError,
+    ):
+        return False
+    return True
+
+
+def _compute_receipt_hash(receipt):
+    """Must stay in lock-step with actaseal.receipt.receipt_hash /
+    signing_bytes: sha256 over the canonical receipt payload minus
+    signature and tsa_anchor (the latter is stapled AFTER signing)."""
+    unsigned = dict(receipt)
+    unsigned.pop("signature", None)
+    unsigned.pop("tsa_anchor", None)
+    return hashlib.sha256(canonical_dumps(unsigned).encode("utf-8")).hexdigest()
+
+
+def verify_continuity_checkpoint(base, receipt, failures, crypto):
+    """T8 (ONESHOT-4 batch 3): optional, additive check -- silent no-op
+    when checkpoint.json is absent, same posture as --anchors. When a
+    continuity-export bundle includes checkpoint.json (a signed
+    SignedTreeHead) and inclusion_proof.json, confirms: the checkpoint's
+    own signature verifies against the public key it ships alongside;
+    this receipt's hash is included under that checkpoint's root (RFC
+    6962 audit-path math); and the inclusion proof's claimed
+    root/tree_size actually match the signed checkpoint, not some other
+    one. When consistency_proof.json is also present (bridging to an
+    older trusted checkpoint), its own math is checked too."""
+    checkpoint_path = base / "checkpoint.json"
+    if not checkpoint_path.exists():
+        return
+    checkpoint = _load_doc(base, "checkpoint.json", "CHECKPOINT_DOC_MISSING", failures)
+    if checkpoint is None:
+        return
+    sth = checkpoint.get("sth")
+    sth_public_key_hex = checkpoint.get("sth_public_key_hex")
+    if not isinstance(sth, dict) or not sth_public_key_hex:
+        failures.append("CHECKPOINT_DOC_MALFORMED: checkpoint.json is missing sth or sth_public_key_hex")
+        return
+    if not _verify_sth_signature(sth, sth_public_key_hex, crypto):
+        failures.append(
+            "%s:checkpoint.json's signed tree head does not verify against its own public key" % STH_SIGNATURE_INVALID
+        )
+
+    proof = _load_doc(base, "inclusion_proof.json", "INCLUSION_PROOF_MISSING", failures)
+    if proof is None:
+        return
+
+    receipt_hash_value = _compute_receipt_hash(receipt)
+    expected_leaf = _leaf_hash(receipt_hash_value.encode("utf-8")).hex()
+    if proof.get("leaf_hash") != expected_leaf:
+        failures.append(
+            "%s:inclusion_proof.leaf_hash does not commit to this receipt's hash" % ANCHOR_INCLUSION_PROOF_INVALID
+        )
+    else:
+        try:
+            computed = _root_from_audit_path(
+                bytes.fromhex(proof["leaf_hash"]),
+                int(proof["entry_id"]),
+                int(proof["sth_tree_size"]),
+                [bytes.fromhex(node) for node in proof["audit_path"]],
+            )
+            if computed.hex() != proof.get("sth_root"):
+                failures.append(
+                    "%s:inclusion_proof audit path does not reproduce sth_root" % ANCHOR_INCLUSION_PROOF_INVALID
+                )
+        except (ValueError, TypeError, KeyError) as exc:
+            failures.append("%s:inclusion_proof is malformed: %s" % (ANCHOR_INCLUSION_PROOF_INVALID, exc))
+
+    if proof.get("sth_root") != sth.get("root_hash") or proof.get("sth_tree_size") != sth.get("tree_size"):
+        failures.append(
+            "%s:inclusion_proof's checkpoint (root=%r, tree_size=%r) does not match "
+            "checkpoint.json's signed tree head (root=%r, tree_size=%r)"
+            % (
+                ANCHOR_CHECKPOINT_MISMATCH,
+                proof.get("sth_root"),
+                proof.get("sth_tree_size"),
+                sth.get("root_hash"),
+                sth.get("tree_size"),
+            )
+        )
+
+    consistency_path = base / "consistency_proof.json"
+    if not consistency_path.exists():
+        return
+    cproof = _load_doc(base, "consistency_proof.json", "CONSISTENCY_PROOF_MISSING", failures)
+    if cproof is None:
+        return
+    m, n = cproof.get("old_tree_size"), cproof.get("new_tree_size")
+    try:
+        m, n = int(m), int(n)
+    except (TypeError, ValueError):
+        failures.append("%s:consistency_proof has non-integer tree sizes" % ANCHOR_CONSISTENCY_PROOF_INVALID)
+        return
+    if m < 0 or n < 0 or m > n:
+        failures.append("%s:consistency_proof has an invalid tree-size relationship" % ANCHOR_CONSISTENCY_PROOF_INVALID)
+        return
+    if m == 0:
+        if cproof.get("proof"):
+            failures.append(
+                "%s:consistency_proof with old_tree_size=0 must carry no proof nodes"
+                % ANCHOR_CONSISTENCY_PROOF_INVALID
+            )
+        return
+    if m == n:
+        if cproof.get("proof") or cproof.get("old_root") != cproof.get("new_root"):
+            failures.append(
+                "%s:consistency_proof for equal tree sizes must have no proof nodes and matching roots"
+                % ANCHOR_CONSISTENCY_PROOF_INVALID
+            )
+        return
+    if not cproof.get("proof"):
+        failures.append("%s:consistency_proof is missing required proof nodes" % ANCHOR_CONSISTENCY_PROOF_INVALID)
+        return
+    try:
+        nodes = [bytes.fromhex(node) for node in cproof["proof"]]
+        old_hash, new_hash = _verify_consistency_nodes(m, n, nodes)
+    except (ValueError, TypeError, IndexError, KeyError):
+        failures.append("%s:consistency_proof is malformed" % ANCHOR_CONSISTENCY_PROOF_INVALID)
+        return
+    if old_hash.hex() != cproof.get("old_root"):
+        failures.append("%s:consistency_proof does not reproduce old_root" % ANCHOR_CONSISTENCY_PROOF_INVALID)
+    if new_hash.hex() != cproof.get("new_root"):
+        failures.append("%s:consistency_proof does not reproduce new_root" % ANCHOR_CONSISTENCY_PROOF_INVALID)
 
 
 def verify_authentication_docs(receipt, events, base, failures):
@@ -454,6 +673,7 @@ def main(argv):
 
     verify_events(manifest, events, failures)
     verify_receipt(manifest, receipt, events, failures, crypto)
+    verify_continuity_checkpoint(base, receipt, failures, crypto)
     verify_authentication_docs(receipt, events, base, failures)
     verify_scope_conformance(manifest, receipt, events, failures)
     verify_approver_snapshot(manifest, receipt, events, failures)
