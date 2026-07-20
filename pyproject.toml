@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "actaseal-verify"
+name = "actaseal"
 version = "1.0.0"
 description = "Standalone offline verifier for ActaSeal dispute evidence packets"
 readme = "README.md"
