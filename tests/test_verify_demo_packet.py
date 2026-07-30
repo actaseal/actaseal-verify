@@ -210,3 +210,86 @@ def test_no_anchors_flag_skips_the_check_silently(tmp_path):
     result = _run_verify(tmp_path / "demo-packet-unanchored")
     assert result.returncode == 0, result.stdout + result.stderr
     assert "ANCHOR" not in result.stdout
+
+
+# --- RCA1 (ledger-root v1->v2 migration): dual-version support (A5) ---
+
+def _set_ledger_root_version(packet_dir: Path, version) -> None:
+    acquisition_path = packet_dir / "acquisition.json"
+    acquisition = json.loads(acquisition_path.read_text(encoding="utf-8"))
+    if version is None:
+        acquisition.pop("ledger_root_version", None)
+    else:
+        acquisition["ledger_root_version"] = version
+    acquisition_path.write_text(json.dumps(acquisition), encoding="utf-8")
+
+
+def test_v1_tagged_artifact_verifies(tmp_path):
+    subprocess.run([sys.executable, str(GENERATOR), str(tmp_path)], check=True)
+    packet_dir = tmp_path / "demo-packet-unanchored"
+    _set_ledger_root_version(packet_dir, "v1")
+
+    result = _run_verify(packet_dir)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "VERIFIED" in result.stdout
+
+
+def test_v2_tagged_artifact_verifies(tmp_path):
+    subprocess.run([sys.executable, str(GENERATOR), str(tmp_path)], check=True)
+    packet_dir = tmp_path / "demo-packet-unanchored"
+    _set_ledger_root_version(packet_dir, "v2")
+
+    result = _run_verify(packet_dir)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "VERIFIED" in result.stdout
+
+
+def test_missing_ledger_root_version_verifies_as_v1(tmp_path):
+    """Old packets predate the ledger_root_version field entirely --
+    absence must mean v1, verifying exactly as it always did, never a
+    silent behavior change or a failure."""
+    subprocess.run([sys.executable, str(GENERATOR), str(tmp_path)], check=True)
+    packet_dir = tmp_path / "demo-packet-unanchored"
+    _set_ledger_root_version(packet_dir, None)
+    acquisition = json.loads((packet_dir / "acquisition.json").read_text(encoding="utf-8"))
+    assert "ledger_root_version" not in acquisition
+
+    result = _run_verify(packet_dir)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "VERIFIED" in result.stdout
+    assert "LEDGER_ROOT_VERSION_UNKNOWN" not in result.stdout
+
+
+def test_unknown_ledger_root_version_fails_loudly_with_named_error(tmp_path):
+    """An unrecognized future version must FAIL LOUDLY with a named
+    error, never fall through to a default (never silently treated as
+    v1 or v2)."""
+    subprocess.run([sys.executable, str(GENERATOR), str(tmp_path)], check=True)
+    packet_dir = tmp_path / "demo-packet-unanchored"
+    _set_ledger_root_version(packet_dir, "v99-from-the-future")
+
+    result = _run_verify(packet_dir)
+    assert result.returncode == 1
+    assert "LEDGER_ROOT_VERSION_UNKNOWN" in result.stdout
+    assert "v99-from-the-future" in result.stdout
+
+
+def test_tampered_v2_tagged_artifact_fails(tmp_path):
+    """A v2-tagged packet gets the SAME real integrity checking as a v1
+    one -- tampering an underlying event hash must still be caught,
+    proving the version tag doesn't weaken or bypass any existing
+    check."""
+    subprocess.run([sys.executable, str(GENERATOR), str(tmp_path)], check=True)
+    packet_dir = tmp_path / "demo-packet-unanchored"
+    _set_ledger_root_version(packet_dir, "v2")
+
+    slice_path = packet_dir / "ledger_slice.ndjson"
+    lines = slice_path.read_text(encoding="utf-8").splitlines()
+    first_event = json.loads(lines[0])
+    first_event["event_hash"] = "0" * 65
+    lines[0] = json.dumps(first_event)
+    slice_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    result = _run_verify(packet_dir)
+    assert result.returncode == 1
+    assert "VERIFICATION FAILED" in result.stdout

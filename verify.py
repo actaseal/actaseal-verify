@@ -5,6 +5,13 @@ Standalone by design: no actaseal imports, so a counterparty can re-check
 the evidence without installing or trusting ActaSeal code. Requires only
 the Python standard library plus the 'cryptography' package (Ed25519).
 
+Dual-version ledger_root support: this verifier declares which
+ledger_root_hash algorithm versions it can check via
+VERIFIER_SUPPORTS_ROOT_VERSIONS below. actaseal/dispute/verifier_gate.py
+in the private actaseal repo reads this exact marker to decide whether a
+v2 root may be emitted into a third-party-verified artifact at all --
+keep both sides of this in sync (see VERIFIER_SYNC.md).
+
 Checks, all of which must hold:
 - every ledger event's payload_hash, event_id, and event_hash recompute
   from its own content (sha256 over canonical JSON: sorted keys, compact
@@ -60,6 +67,17 @@ ANCHOR_INCLUSION_PROOF_INVALID = "ANCHOR_INCLUSION_PROOF_INVALID"
 ANCHOR_CONSISTENCY_PROOF_INVALID = "ANCHOR_CONSISTENCY_PROOF_INVALID"
 ANCHOR_CHECKPOINT_MISMATCH = "ANCHOR_CHECKPOINT_MISMATCH"
 STH_SIGNATURE_INVALID = "STH_SIGNATURE_INVALID"
+
+# RCA1 (ledger-root v1->v2 migration): versions this verifier can check.
+# A packet declaring a version NOT in this tuple fails loudly
+# (LEDGER_ROOT_VERSION_UNKNOWN) -- never silently treated as v1 or
+# silently passed through. v1 keeps its exact byte-level meaning
+# forever; a packet with NO ledger_root_version field at all predates
+# this field and means v1 (old packets must keep verifying exactly as
+# they always did).
+VERIFIER_SUPPORTS_ROOT_VERSIONS = ("v1", "v2")
+LEDGER_ROOT_VERSION_V1 = "v1"
+LEDGER_ROOT_VERSION_UNKNOWN = "LEDGER_ROOT_VERSION_UNKNOWN"
 
 SCHEMA_VERSION = "dispute_packet.v1"
 EVENT_ID_BASIS = "ledger_event_id.v1"
@@ -397,6 +415,31 @@ def verify_continuity_checkpoint(base, receipt, failures, crypto):
         failures.append("%s:consistency_proof does not reproduce new_root" % ANCHOR_CONSISTENCY_PROOF_INVALID)
 
 
+def verify_ledger_root_version(base, failures):
+    """Reads acquisition.json's ledger_root_version (the field name
+    actaseal's packet.py/inspection_pack.py/control_export.py all
+    write). Returns the effective version string ("v1"/"v2") for
+    callers that need it (e.g. verify_ledger_head_anchor), or None if
+    this packet declares an unrecognized version -- in which case a
+    LEDGER_ROOT_VERSION_UNKNOWN failure is appended and the caller must
+    not proceed as if a known version were in effect.
+
+    Missing entirely (no acquisition.json, or acquisition.json without
+    the key) means v1: this field did not exist before RCA1, so every
+    packet built before it defaults to the version they always were --
+    never a silent behavior change for old packets."""
+    acquisition = _load_doc(base, "acquisition.json", "ACQUISITION_REPORT_MISSING", [])
+    if acquisition is None:
+        return LEDGER_ROOT_VERSION_V1
+    version = acquisition.get("ledger_root_version")
+    if version is None:
+        return LEDGER_ROOT_VERSION_V1
+    if version not in VERIFIER_SUPPORTS_ROOT_VERSIONS:
+        failures.append("%s: %r" % (LEDGER_ROOT_VERSION_UNKNOWN, version))
+        return None
+    return version
+
+
 def verify_authentication_docs(receipt, events, base, failures):
     """FRE 901(b)(9) / 902(13)-(14) posture: the acquisition report,
     chain-of-custody doc, and authentication statement must be present
@@ -575,6 +618,13 @@ def verify_ledger_head_anchor(base, failures, anchors_path):
         return
     acquisition = _load_doc(base, "acquisition.json", "ACQUISITION_REPORT_MISSING", [])
     root_hash = acquisition.get("ledger_root_hash") if acquisition else None
+    # Dual-version aware: an anchor entry written for a v2 root must
+    # not be matched against a v1 root_hash that happens to differ
+    # only because it's a different algorithm's value, and vice versa.
+    # Absent on either side defaults to v1, same convention as
+    # verify_ledger_root_version above and AnchorRecord.root_version's
+    # own default on the actaseal side.
+    root_version = (acquisition.get("ledger_root_version") if acquisition else None) or LEDGER_ROOT_VERSION_V1
     if not root_hash:
         failures.append(
             "ANCHOR_CHECK_NO_LEDGER_ROOT_HASH: acquisition.json carries no ledger_root_hash to check "
@@ -594,11 +644,16 @@ def verify_ledger_head_anchor(base, failures, anchors_path):
             entry = json.loads(line)
         except ValueError:
             continue
-        if entry.get("root_hash") == root_hash and entry.get("status") == "OK":
+        entry_root_version = entry.get("root_version") or LEDGER_ROOT_VERSION_V1
+        if (
+            entry.get("root_hash") == root_hash
+            and entry_root_version == root_version
+            and entry.get("status") == "OK"
+        ):
             return
     failures.append(
         "ANCHOR_ENTRY_NOT_FOUND: no successful anchor entry in %s witnesses this packet's "
-        "ledger_root_hash %r" % (anchors_path, root_hash)
+        "ledger_root_hash %r (root_version %r)" % (anchors_path, root_hash, root_version)
     )
 
 
@@ -678,6 +733,7 @@ def main(argv):
         print("  UNREADABLE_PACKET: %s" % exc)
         return 1
 
+    verify_ledger_root_version(base, failures)
     verify_events(manifest, events, failures)
     verify_receipt(manifest, receipt, events, failures, crypto)
     verify_continuity_checkpoint(base, receipt, failures, crypto)
