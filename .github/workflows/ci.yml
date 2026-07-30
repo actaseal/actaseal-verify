@@ -62,6 +62,60 @@ jobs:
       - name: Run conformance vectors
         run: pytest -q conformance/test_conformance.py
 
+  # Confirms the PUBLISHED @actaseal/verify npm package (not this repo's
+  # local tamper_demo/ source) actually works when installed fresh from
+  # the registry -- distinct from every other job here, which only ever
+  # exercises local source. Installs into an isolated temp dir (never
+  # this repo's own tamper_demo/, which is what a stray local
+  # `npm install @actaseal/verify` run inside that directory previously
+  # did by mistake -- self-referential and never what this needed to
+  # test). Runs against a known-good demo packet (expect PASS) and a
+  # tampered copy (expect FAIL) so a real regression in the published
+  # package, not just the source tree, would be caught.
+  npm-published-package-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install the PUBLISHED package into an isolated temp dir
+        run: |
+          mkdir -p /tmp/actaseal-verify-npm-smoke
+          cd /tmp/actaseal-verify-npm-smoke
+          npm init -y >/dev/null
+          npm install @actaseal/verify
+      - name: Verify a known-good packet (expect PASS), then a tampered one (expect FAIL)
+        run: |
+          node - <<'NODE_EOF'
+          const { verifyPacket } = require("/tmp/actaseal-verify-npm-smoke/node_modules/@actaseal/verify");
+          const fs = require("fs");
+          const path = require("path");
+
+          const packetDir = path.join(__dirname, "demo", "demo-packet-unanchored");
+          const manifest = JSON.parse(fs.readFileSync(path.join(packetDir, "manifest.json"), "utf8"));
+          const receipt = JSON.parse(fs.readFileSync(path.join(packetDir, "receipt.json"), "utf8"));
+          const events = fs.readFileSync(path.join(packetDir, "ledger_slice.ndjson"), "utf8")
+            .trim().split("\n").map((line) => JSON.parse(line));
+
+          (async () => {
+            const good = await verifyPacket(manifest, receipt, events);
+            if (!good.verified) {
+              console.error("EXPECTED PASS, GOT FAIL:", good.failures);
+              process.exit(1);
+            }
+            console.log("known-good packet: PASS, as expected");
+
+            const tamperedReceipt = { ...receipt, signature: "00".repeat(64) };
+            const tampered = await verifyPacket(manifest, tamperedReceipt, events);
+            if (tampered.verified) {
+              console.error("EXPECTED FAIL, GOT PASS -- tampered signature was not caught");
+              process.exit(1);
+            }
+            console.log("tampered packet: FAIL, as expected:", tampered.failures);
+          })();
+          NODE_EOF
+
   attach-sbom-to-release:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
