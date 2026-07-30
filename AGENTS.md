@@ -26,6 +26,15 @@ offline verifier for ActaSeal dispute evidence packets. See
   real bug should be synced there via that repo's
   `scripts/sync_public_verifier.py` -- do not assume this repo's
   changes propagate automatically.
+  - As of commit `d58a322` ("Dual-version ledger_root_hash support
+    (v1/v2), RCA1 two-repo release"), this file declares
+    `VERIFIER_SUPPORTS_ROOT_VERSIONS = ("v1", "v2")` and independently
+    verifies `ledger_root_version` (missing means v1, unrecognized
+    fails loudly). The private repo's `actaseal/dispute/verifier_gate.py`
+    reads this exact marker to decide whether it may emit a v2
+    `ledger_root_hash` into a third-party-verified artifact at all --
+    keep the marker name and the `("v1", "v2")` tuple's meaning in
+    sync with that gate if either side changes.
 
 ## Before committing
 
