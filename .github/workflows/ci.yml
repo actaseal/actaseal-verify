@@ -39,6 +39,29 @@ jobs:
           name: sbom
           path: sbom.cdx.json
 
+  # PLUG7: Windows CI for the pure-python offline verifier -- a buyer's
+  # dispute team is not guaranteed to run Linux. No PQ vectors exist in
+  # this repo's conformance set (the PQ verifier branch was reverted
+  # from this repo's verify.py, see the private repo's CLAUDE.md ONESHOT-3
+  # notes -- the equivalent lives in the private repo's actaseal/receipt.py
+  # instead, not here), so nothing needs skipping.
+  windows-verifier:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install cryptography pytest
+      - name: Run test suite
+        run: pytest -q
+      - name: Smoke test -- verify committed demo packets
+        run: |
+          python verify.py demo/demo-packet-unanchored
+          python verify.py demo/demo-packet-anchored
+      - name: Run conformance vectors
+        run: pytest -q conformance/test_conformance.py
+
   attach-sbom-to-release:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
