@@ -894,6 +894,174 @@ def verify_scitt_receipt(subject_hash_hex, receipt, sth_public_key_hex, crypto):
     return (not failures), failures
 
 
+# READINESS-AND-SHIP Task 1: verifies an AS 1215 archive engagement
+# export (actaseal.archive.inspection_pack.build_inspection_pack's
+# output -- an "inspection pack" zip is exactly this export; there is
+# no separate export format to build) standalone, with no ActaSeal
+# import, no network, and the server stopped. That export already
+# contains everything a seven-year retention holder needs: the
+# engagement's own ledger_slice.ndjson (records), archive_attestation.
+# json (the RFC 3161 token AND the SCITT transparency receipt, both
+# embedded inside its two evidence-record chains -- see
+# actaseal.archive.attestation.issue_archive_attestation), and
+# workpaper_index.json (the hash manifest). See docs/EXPORT.md.
+ARCHIVE_EXPORT_SCHEMA_VERSION = "inspection_pack.v1"
+
+ARCHIVE_EXPORT_MANIFEST_SCHEMA_MISMATCH = "ARCHIVE_EXPORT_MANIFEST_SCHEMA_MISMATCH"
+ARCHIVE_EXPORT_EVENT_COUNT_MISMATCH = "ARCHIVE_EXPORT_EVENT_COUNT_MISMATCH"
+ARCHIVE_EXPORT_EMPTY_LEDGER_SLICE = "ARCHIVE_EXPORT_EMPTY_LEDGER_SLICE"
+ARCHIVE_EXPORT_CHAIN_START_MISMATCH = "ARCHIVE_EXPORT_CHAIN_START_MISMATCH"
+ARCHIVE_EXPORT_CHAIN_BROKEN = "ARCHIVE_EXPORT_CHAIN_BROKEN"
+ARCHIVE_EXPORT_MALFORMED_EVENT = "ARCHIVE_EXPORT_MALFORMED_EVENT"
+ARCHIVE_EXPORT_WORKPAPER_SET_TAMPERED = "ARCHIVE_EXPORT_WORKPAPER_SET_TAMPERED"
+
+
+def load_archive_export(base):
+    """`base` is a directory holding the four files an inspection pack
+    zip contains once extracted (manifest.json, workpaper_index.json,
+    archive_attestation.json, ledger_slice.ndjson) -- extract the zip
+    first (this function does not open zips itself, matching
+    load_packet's own directory-only contract above)."""
+    manifest = json.loads((base / "manifest.json").read_text(encoding="utf-8"))
+    workpaper_index = json.loads((base / "workpaper_index.json").read_text(encoding="utf-8"))
+    attestation = json.loads((base / "archive_attestation.json").read_text(encoding="utf-8"))
+    events = []
+    for line in (base / "ledger_slice.ndjson").read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            event = json.loads(line)
+            if not isinstance(event, dict):
+                raise ValueError("each ledger_slice.ndjson line must be a JSON object, got %s" % type(event).__name__)
+            events.append(event)
+    return manifest, workpaper_index, attestation, events
+
+
+def verify_archive_export_ledger_slice(manifest, events, failures):
+    """Same per-event recomputation as verify_events above (payload_hash/
+    event_id/event_hash/chain contiguity, via the same canonical_hash/
+    EVENT_MATERIAL_FIELDS/EVENT_ID_BASIS) -- a separate function, not a
+    call into verify_events, because an inspection-pack manifest has no
+    action_id to bind a single receipt to (an engagement's slice
+    legitimately spans several action_ids -- its own, plus one per
+    workpaper) and a different schema_version. Must stay in lock-step
+    with actaseal.archive.inspection_pack._verify_slice_hash_chain."""
+    if manifest.get("schema_version") != ARCHIVE_EXPORT_SCHEMA_VERSION:
+        failures.append(ARCHIVE_EXPORT_MANIFEST_SCHEMA_MISMATCH)
+    if manifest.get("event_count") != len(events):
+        failures.append(
+            "%s: manifest=%r slice=%d" % (ARCHIVE_EXPORT_EVENT_COUNT_MISMATCH, manifest.get("event_count"), len(events))
+        )
+    if not events:
+        failures.append(ARCHIVE_EXPORT_EMPTY_LEDGER_SLICE)
+        return
+    if events[0].get("previous_event_hash") != manifest.get("chain_start_previous_event_hash"):
+        failures.append(ARCHIVE_EXPORT_CHAIN_START_MISMATCH)
+    previous_hash = None
+    for index, event in enumerate(events):
+        try:
+            material = {field: event[field] for field in EVENT_MATERIAL_FIELDS}
+            if canonical_hash(event["payload"]) != event["payload_hash"]:
+                failures.append("PAYLOAD_HASH_MISMATCH: event %d" % index)
+            expected_id = canonical_hash(dict(material, event_id_basis=EVENT_ID_BASIS))
+            if expected_id != event["event_id"]:
+                failures.append("EVENT_ID_MISMATCH: event %d" % index)
+            expected_hash = canonical_hash(dict(material, event_id=event["event_id"]))
+            if expected_hash != event["event_hash"]:
+                failures.append("EVENT_HASH_MISMATCH: event %d" % index)
+            if index > 0 and event["previous_event_hash"] != previous_hash:
+                failures.append("%s: event %d" % (ARCHIVE_EXPORT_CHAIN_BROKEN, index))
+            previous_hash = event["event_hash"]
+        except Exception as exc:
+            failures.append("%s: event %d: %s" % (ARCHIVE_EXPORT_MALFORMED_EVENT, index, exc))
+            return
+
+
+def _merkle_root_from_leaves(leaves):
+    """Must stay in lock-step with actaseal.anchoring._merkle_root (the
+    Merkle Tree Hash per RFC 9162 section 2, domain-separated leaf/node
+    hashing -- _leaf_hash/_node_hash above are already that same
+    construction, reused unchanged)."""
+    if not leaves:
+        return hashlib.sha256(b"").digest()
+    if len(leaves) == 1:
+        return leaves[0]
+    split = 1
+    while split * 2 < len(leaves):
+        split *= 2
+    return _node_hash(_merkle_root_from_leaves(leaves[:split]), _merkle_root_from_leaves(leaves[split:]))
+
+
+def _compute_workpaper_set_hashes(workpaper_hashes):
+    """Must stay in lock-step with actaseal.archive.attestation.
+    compute_workpaper_set_hashes -- the subject an ArchiveAttestation's
+    two evidence-record chains actually commit to: a Merkle root over
+    the engagement's SORTED workpaper content hashes, itself hashed
+    under sha256 (the root value itself) and sha3-256 (of the root's
+    raw bytes)."""
+    leaves = [_leaf_hash(bytes.fromhex(h)) for h in sorted(workpaper_hashes)]
+    root_hex = _merkle_root_from_leaves(leaves).hex()
+    return {"sha256": root_hex, "sha3-256": hashlib.sha3_256(bytes.fromhex(root_hex)).hexdigest()}
+
+
+def verify_archive_export(base, *, tsa_ca_cert_paths=None, sth_public_key_hex=None, crypto=None):
+    """Full, standalone verification of an extracted inspection-pack
+    export directory -- everything a third party needs, with no
+    ActaSeal import, no network, and (if the caller omits
+    tsa_ca_cert_paths/sth_public_key_hex) no external trust root
+    required for the parts that don't need one. Returns (ok, failures).
+
+    `tsa_ca_cert_paths`, if given, additionally verifies the embedded
+    RFC 3161 token against that root bundle (requires asn1crypto -- see
+    verify_rfc3161_token). `sth_public_key_hex`, if given, additionally
+    verifies the embedded SCITT receipt's signed checkpoint against that
+    public key (see verify_scitt_receipt) -- both optional because a
+    reader may only have one of the two trust roots in hand, and the
+    hash-chain + workpaper-set checks below are unconditional and need
+    neither."""
+    failures = []
+    try:
+        manifest, workpaper_index, attestation, events = load_archive_export(base)
+    except Exception as exc:
+        return False, ["UNREADABLE_ARCHIVE_EXPORT: %s" % exc]
+
+    verify_archive_export_ledger_slice(manifest, events, failures)
+
+    workpapers = workpaper_index.get("workpapers") or []
+    current_hashes = [w["content_hash"] for w in workpapers if w.get("content_hash")]
+    chains = (attestation.get("evidence_record") or {}).get("chains") or []
+    subject_hashes = (attestation.get("evidence_record") or {}).get("subject_hashes") or {}
+    current_subject_hashes = _compute_workpaper_set_hashes(current_hashes) if current_hashes else {}
+    if current_subject_hashes != subject_hashes:
+        failures.append(ARCHIVE_EXPORT_WORKPAPER_SET_TAMPERED)
+
+    if tsa_ca_cert_paths:
+        tsa_chain = next((c for c in chains if c.get("anchor_type") == "rfc3161_tsa"), None)
+        if tsa_chain is None:
+            failures.append("ARCHIVE_EXPORT_NO_TSA_CHAIN: archive_attestation.json carries no rfc3161_tsa chain")
+        else:
+            ok, tsa_failures = verify_rfc3161_token(
+                tsa_chain["anchor"]["token_der_hex"], subject_hashes.get("sha256", ""), tsa_ca_cert_paths,
+            )
+            if not ok:
+                failures.extend("ARCHIVE_EXPORT_TSA_CHAIN: %s" % f for f in tsa_failures)
+
+    if sth_public_key_hex:
+        scitt_chain = next((c for c in chains if c.get("anchor_type") == "sth_inclusion"), None)
+        if scitt_chain is None:
+            failures.append("ARCHIVE_EXPORT_NO_SCITT_CHAIN: archive_attestation.json carries no sth_inclusion chain")
+        else:
+            receipt_shape = {
+                "inclusion_proof": scitt_chain["anchor"]["inclusion_proof"],
+                "signed_tree_head": scitt_chain["anchor"]["sth"],
+            }
+            ok, scitt_failures = verify_scitt_receipt(
+                subject_hashes.get("sha3-256", ""), receipt_shape, sth_public_key_hex, crypto or {},
+            )
+            if not ok:
+                failures.extend("ARCHIVE_EXPORT_SCITT_CHAIN: %s" % f for f in scitt_failures)
+
+    return (not failures), failures
+
+
 def main(argv):
     try:
         from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
@@ -912,11 +1080,15 @@ def main(argv):
         "ecdsa_sha256": ec.ECDSA(hashes.SHA256()),
     }
 
-    # --anchors PATH is an optional flag, stripped out before the
-    # positional packet_dir argument is resolved -- it can appear
-    # anywhere in argv (before or after packet_dir).
+    # --anchors PATH, --archive-export, --tsa-ca-cert PATH (repeatable),
+    # --sth-public-key HEX are optional flags, stripped out before the
+    # positional packet_dir argument is resolved -- any can appear
+    # anywhere in argv.
     positional = []
     anchors_path = None
+    archive_export_mode = False
+    tsa_ca_cert_paths = []
+    sth_public_key_hex = None
     args = list(argv[1:])
     while args:
         arg = args.pop(0)
@@ -925,10 +1097,42 @@ def main(argv):
                 print("UNABLE_TO_RUN: --anchors requires a path argument")
                 return 2
             anchors_path = args.pop(0)
+        elif arg == "--archive-export":
+            archive_export_mode = True
+        elif arg == "--tsa-ca-cert":
+            if not args:
+                print("UNABLE_TO_RUN: --tsa-ca-cert requires a path argument")
+                return 2
+            tsa_ca_cert_paths.append(args.pop(0))
+        elif arg == "--sth-public-key":
+            if not args:
+                print("UNABLE_TO_RUN: --sth-public-key requires a hex-encoded public key argument")
+                return 2
+            sth_public_key_hex = args.pop(0)
         else:
             positional.append(arg)
 
     base = Path(positional[0]) if positional else Path(__file__).resolve().parent
+
+    if archive_export_mode:
+        # A different artifact type (an AS 1215 archive engagement
+        # export -- see docs/EXPORT.md), not a money-action dispute
+        # packet: a separate verification path, not folded into the
+        # flow below, since the two share no manifest shape.
+        ok, export_failures = verify_archive_export(
+            base, tsa_ca_cert_paths=tsa_ca_cert_paths or None, sth_public_key_hex=sth_public_key_hex, crypto=crypto,
+        )
+        if not ok:
+            print("VERIFICATION FAILED")
+            for failure in export_failures:
+                print("  " + failure)
+            return 1
+        print("VERIFIED (archive export): ledger chain intact, workpaper set matches attestation")
+        if tsa_ca_cert_paths:
+            print("  RFC 3161 timestamp verified against the supplied CA bundle")
+        if sth_public_key_hex:
+            print("  SCITT transparency receipt verified against the supplied public key")
+        return 0
     failures = []
     try:
         manifest, receipt, events = load_packet(base)
