@@ -1,0 +1,31 @@
+{
+  "description": "Same real receipt with inclusion_proof.leaf_hash tampered. Expected: FAIL, named ANCHOR_INCLUSION_PROOF_INVALID.",
+  "subject_hash_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "receipt": {
+    "registration_id": "0",
+    "signed_statement_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "inclusion_proof": {
+      "log_id": "conformance-vector-log",
+      "entry_id": "0",
+      "signed_timestamp": "2026-07-31T18:23:02.799191+00:00",
+      "leaf_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "audit_path": [],
+      "sth_root": "88df0645999a1bc9dec19086e862403750a069436d7ecf7775256f78279b3fcb",
+      "sth_tree_size": 1
+    },
+    "signed_tree_head": {
+      "log_id": "conformance-vector-log",
+      "tree_size": 1,
+      "root_hash": "88df0645999a1bc9dec19086e862403750a069436d7ecf7775256f78279b3fcb",
+      "timestamp": "2026-07-31T18:23:02.799216+00:00",
+      "key_id": "conformance-vector-key",
+      "algorithm": "ed25519",
+      "signature": "6698ac076201944b3a331bee14e455634db8ce15c4d625da4523cd8cf45ed6085eddc77c98294e3d5e2534a259627c7710573e9d48a3da29b98aa492f5a58f05"
+    },
+    "registration_policy": "accept-all (statement well-formed; caller authorization is enforced by the route's own RBAC, not by this policy)",
+    "registered_at": "2026-07-31T18:23:02.799216+00:00"
+  },
+  "sth_public_key_hex": "cce12c5c6833680893e99c7a8f1a678b00e0daa63a4a77dfed97511789b393ad",
+  "expected_ok": false,
+  "expected_failure_substring": "ANCHOR_INCLUSION_PROOF_INVALID"
+}

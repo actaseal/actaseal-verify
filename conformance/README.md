@@ -82,4 +82,23 @@ bytes of `valid/`, `tampered_payload/`, `tampered_chain/`,
 `wrong_signature/`, and both `rotated_key_still_verifies/` sub-packets
 (and therefore `vectors.sha256`) even with no logical change -- the pin
 guards against *undetected* hand-edits between regenerations, not
-byte-for-byte reproducibility across them.
+byte-for-byte reproducibility across them. `generate_vectors.py` only
+ever deletes/rebuilds these five named dispute-packet vector sets
+(`DISPUTE_PACKET_VECTOR_NAMES`) -- it never touches `archive_attestation_v1/`
+below.
+
+## Archive-attestation vectors (`vectors/archive_attestation_v1/`)
+
+A separate, hand-authored (not `generate_vectors.py`-generated) vector
+set for `verify.py`'s two additive functions covering a DIFFERENT
+artifact type -- an AS 1215 archive engagement's attestation, not a
+money-action dispute packet: `verify_rfc3161_token` (a real,
+pre-captured freetsa.org RFC 3161 TimeStampToken, pass/hash-mismatch/
+no-trusted-root) and `verify_scitt_receipt` (a real SCITT/RFC 9943
+Receipt from the private repo's `actaseal.archive.transparency_service`,
+pass/tampered-leaf). `freetsa_root_ca.pem` and `unrelated_root_ca.pem`
+ship alongside so the vectors are self-contained. Covered by
+`test_archive_attestation_conformance.py`, not `test_conformance.py`
+(the RFC 3161 vectors additionally require `pip install actaseal[rfc3161]`
+for `asn1crypto`; the SCITT-receipt vectors need only `cryptography`).
+Included in `vectors.sha256`'s pin like everything else under `vectors/`.

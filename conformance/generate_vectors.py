@@ -212,11 +212,29 @@ def write_pin() -> None:
     PIN_FILE.write_text("\n".join(entries) + "\n", encoding="utf-8")
 
 
+DISPUTE_PACKET_VECTOR_NAMES = (
+    "valid",
+    "tampered_payload",
+    "tampered_chain",
+    "wrong_signature",
+    "rotated_key_still_verifies",
+)
+
+
 def main() -> int:
+    # Only remove the dispute-packet vectors THIS script actually
+    # regenerates (DISPUTE_PACKET_VECTOR_NAMES) -- a bare
+    # shutil.rmtree(VECTORS_DIR) here would also delete
+    # archive_attestation_v1/ (the separate RFC 3161 / SCITT-receipt
+    # vector set test_archive_attestation_conformance.py owns), which
+    # this script has no logic to rebuild.
     if VECTORS_DIR.exists():
         import shutil
 
-        shutil.rmtree(VECTORS_DIR)
+        for name in DISPUTE_PACKET_VECTOR_NAMES:
+            child = VECTORS_DIR / name
+            if child.exists():
+                shutil.rmtree(child)
     build_valid_vector()
     build_tampered_payload_vector()
     build_tampered_chain_vector()

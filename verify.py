@@ -68,6 +68,18 @@ ANCHOR_CONSISTENCY_PROOF_INVALID = "ANCHOR_CONSISTENCY_PROOF_INVALID"
 ANCHOR_CHECKPOINT_MISMATCH = "ANCHOR_CHECKPOINT_MISMATCH"
 STH_SIGNATURE_INVALID = "STH_SIGNATURE_INVALID"
 
+# ATTESTATION-LIVE Task 4: RFC 3161 token + SCITT (RFC 9943) receipt
+# verification, additive to this file's existing dispute-packet checks
+# above -- neither of these two functions is wired into main()'s
+# dispute-packet flow (a different artifact type: an AS 1215 archive
+# inspection pack, not a money-action dispute packet), so no existing
+# conformance vector's behavior changes. Both are plain, importable
+# functions a caller (or a future archive-inspection-pack CLI mode)
+# invokes directly.
+TSA_TOKEN_HASH_MISMATCH = "TSA_TOKEN_HASH_MISMATCH"
+TSA_TOKEN_INVALID = "TSA_TOKEN_INVALID"
+TSA_TOKEN_NO_TRUSTED_ROOT = "TSA_TOKEN_NO_TRUSTED_ROOT"
+
 # RCA1 (ledger-root v1->v2 migration): versions this verifier can check.
 # A packet declaring a version NOT in this tuple fails loudly
 # (LEDGER_ROOT_VERSION_UNKNOWN) -- never silently treated as v1 or
@@ -688,6 +700,198 @@ def verify_settlement_anchor(manifest, failures):
             "SETTLEMENT_ANCHOR_HASH_MISMATCH: anchor_hash does not recompute from "
             "the anchor content in manifest.json"
         )
+
+
+def verify_rfc3161_token(token_der_hex, hash_hex, ca_cert_paths):
+    """ATTESTATION-LIVE Task 4: offline-verify an RFC 3161 (+ RFC 5816
+    structure) TimeStampToken against a HASH the caller supplies (never
+    trusted from inside the token) and a CONFIGURABLE, multi-member root
+    bundle -- a buyer's own qualified TSA, freetsa.org's, or several at
+    once. Succeeds if the token validates against ANY certificate in
+    `ca_cert_paths` (tried in order); this is the "multi-TSA root
+    bundle" the task asks for -- not full PKIX path validation (see the
+    limitations list below, faithfully carried over unchanged).
+
+    Faithful, standalone port of actaseal.anchor.tsa.verify_tsa_token --
+    must stay in lock-step with it; this is not a second, divergent
+    implementation, it is the SAME checks (messageImprint match, CMS
+    SignedData signature over signedAttrs, signedAttrs messageDigest
+    binding to TSTInfo, signer cert chains to a pinned CA) reproduced
+    here because this file ships with zero actaseal imports (any
+    third party can run it standalone) and the private repo's version
+    imports actaseal.airgap/actaseal.crypto_agility this file cannot.
+
+    Requires 'asn1crypto' in addition to 'cryptography' -- a real, new
+    dependency for THIS specific optional check (CMS/ASN.1 parsing is
+    unavoidable for RFC 3161 token verification), not for the base
+    dispute-packet verification flow, which still requires nothing
+    beyond the stdlib + 'cryptography'. Documented here rather than
+    silently added: if asn1crypto is unavailable, this function raises
+    ImportError with a clear message, same "can't run, say so" posture
+    as main()'s own missing-cryptography check.
+
+    Returns (ok, failures)."""
+    try:
+        from asn1crypto import cms, tsp  # noqa: F401 -- importing tsp registers the TSTInfo content-type OID
+    except ImportError as exc:
+        raise ImportError(
+            "verify_rfc3161_token requires the 'asn1crypto' package (pip install asn1crypto) "
+            "for RFC 3161 CMS/ASN.1 parsing"
+        ) from exc
+    from cryptography import x509 as cx509
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
+
+    failures = []
+    hash_bytes = bytes.fromhex(hash_hex)
+    try:
+        token_der = bytes.fromhex(token_der_hex)
+        ci = cms.ContentInfo.load(token_der)
+        sd = ci["content"]
+        tst_info = sd["encap_content_info"]["content"].parsed
+        message_imprint = tst_info["message_imprint"]["hashed_message"].native
+        if message_imprint != hash_bytes:
+            failures.append(TSA_TOKEN_HASH_MISMATCH)
+            return False, failures
+
+        signer_infos = sd["signer_infos"]
+        if len(signer_infos) != 1:
+            failures.append("%s: unexpected signer count" % TSA_TOKEN_INVALID)
+            return False, failures
+        signer_info = signer_infos[0]
+
+        certs = sd["certificates"]
+        if len(certs) < 1:
+            failures.append("%s: no signer certificate in token" % TSA_TOKEN_INVALID)
+            return False, failures
+        signer_cert_der = certs[0].chosen.dump()
+        signer_cert = cx509.load_der_x509_certificate(signer_cert_der, default_backend())
+
+        signed_attrs = signer_info["signed_attrs"]
+        # RFC 5652: the signature covers the SET OF encoding (tag 0x31)
+        # of signed_attrs, not its context-specific [0] IMPLICIT encoding.
+        signed_attrs_der = b"\x31" + signed_attrs.dump()[1:]
+        signature = signer_info["signature"].native
+        digest_algo = signer_info["digest_algorithm"]["algorithm"].native
+        hash_map = {"sha256": hashes.SHA256, "sha384": hashes.SHA384, "sha512": hashes.SHA512}
+        hash_cls = hash_map.get(digest_algo)
+        if hash_cls is None:
+            failures.append("%s: unsupported digest algorithm %r" % (TSA_TOKEN_INVALID, digest_algo))
+            return False, failures
+
+        signer_public_key = signer_cert.public_key()
+        try:
+            if isinstance(signer_public_key, rsa.RSAPublicKey):
+                signer_public_key.verify(signature, signed_attrs_der, padding.PKCS1v15(), hash_cls())
+            else:
+                signer_public_key.verify(signature, signed_attrs_der, ec.ECDSA(hash_cls()))
+        except InvalidSignature:
+            failures.append("%s: signature over signed attributes does not verify" % TSA_TOKEN_INVALID)
+
+        message_digest_attr = None
+        for attr in signed_attrs:
+            if attr["type"].native == "message_digest":
+                message_digest_attr = attr["values"][0].native
+        content_bytes = bytes(sd["encap_content_info"]["content"])
+        digest_ctor = {"sha256": hashlib.sha256, "sha384": hashlib.sha384, "sha512": hashlib.sha512}[digest_algo]
+        actual_digest = digest_ctor(content_bytes).digest()
+        if message_digest_attr != actual_digest:
+            failures.append("%s: signedAttrs messageDigest does not match TSTInfo content" % TSA_TOKEN_INVALID)
+        if failures:
+            return False, failures
+
+        # Multi-TSA root bundle: succeed against ANY configured CA.
+        chain_failures = []
+        for ca_cert_path in ca_cert_paths:
+            ca_path = Path(ca_cert_path)
+            if not ca_path.is_file():
+                chain_failures.append("%s: CA cert unavailable" % ca_cert_path)
+                continue
+            try:
+                ca_cert = cx509.load_pem_x509_certificate(ca_path.read_bytes(), default_backend())
+                ca_public_key = ca_cert.public_key()
+                if isinstance(ca_public_key, rsa.RSAPublicKey):
+                    ca_public_key.verify(
+                        signer_cert.signature, signer_cert.tbs_certificate_bytes,
+                        padding.PKCS1v15(), signer_cert.signature_hash_algorithm,
+                    )
+                else:
+                    ca_public_key.verify(
+                        signer_cert.signature, signer_cert.tbs_certificate_bytes,
+                        ec.ECDSA(signer_cert.signature_hash_algorithm),
+                    )
+                return True, []  # matched this root -- done, do not evaluate the rest of the bundle
+            except InvalidSignature:
+                chain_failures.append("%s: does not chain to this root" % ca_cert_path)
+                continue
+        failures.append(
+            "%s: signer certificate did not chain to any of %d configured root(s): %s"
+            % (TSA_TOKEN_NO_TRUSTED_ROOT, len(ca_cert_paths), "; ".join(chain_failures))
+        )
+    except Exception as exc:  # noqa: BLE001 -- any parse failure is a verify failure, not a crash
+        failures.append("%s: malformed token: %s: %s" % (TSA_TOKEN_INVALID, type(exc).__name__, exc))
+        return False, failures
+    return (not failures), failures
+
+
+def verify_scitt_receipt(subject_hash_hex, receipt, sth_public_key_hex, crypto):
+    """ATTESTATION-LIVE Task 4: offline-verify a SCITT (RFC 9943) Receipt
+    -- {registration_id, inclusion_proof, signed_tree_head, ...}, the
+    shape actaseal.archive.transparency_service.Receipt.to_dict() emits
+    -- against PUBLISHED ledger state (the caller fetches the current
+    SignedTreeHead + public key from GET /trust/archive-transparency-
+    sth.json, or trusts the sth embedded in the receipt itself and only
+    checks its signature -- both are supported: this function takes
+    whichever SignedTreeHead the caller wants checked against).
+
+    Reuses this file's own _leaf_hash/_root_from_audit_path/
+    _verify_sth_signature (the SAME functions verify_continuity_
+    checkpoint above already uses for the dispute-packet's own inclusion
+    proof) -- no second Merkle or signature implementation. `receipt`
+    is a dict with `inclusion_proof` (log_id, entry_id, leaf_hash,
+    audit_path, sth_root, sth_tree_size) and `signed_tree_head` (log_id,
+    tree_size, root_hash, timestamp, key_id, algorithm, signature) sub-
+    dicts, mirroring actaseal.anchoring.InclusionProof/SignedTreeHead's
+    own to_dict() shape unchanged.
+
+    Returns (ok, failures)."""
+    failures = []
+    proof = receipt.get("inclusion_proof") or {}
+    sth = receipt.get("signed_tree_head") or {}
+
+    if not _verify_sth_signature(sth, sth_public_key_hex, crypto):
+        failures.append("%s: signed_tree_head does not verify against the given public key" % STH_SIGNATURE_INVALID)
+
+    expected_leaf = _leaf_hash(subject_hash_hex.encode("utf-8")).hex()
+    if proof.get("leaf_hash") != expected_leaf:
+        failures.append(
+            "%s:inclusion_proof.leaf_hash does not commit to this subject hash" % ANCHOR_INCLUSION_PROOF_INVALID
+        )
+    else:
+        try:
+            computed = _root_from_audit_path(
+                bytes.fromhex(proof["leaf_hash"]), int(proof["entry_id"]), int(proof["sth_tree_size"]),
+                [bytes.fromhex(node) for node in proof["audit_path"]],
+            )
+            if computed.hex() != proof.get("sth_root"):
+                failures.append(
+                    "%s:inclusion_proof audit path does not reproduce sth_root" % ANCHOR_INCLUSION_PROOF_INVALID
+                )
+        except (ValueError, TypeError, KeyError) as exc:
+            failures.append("%s:inclusion_proof is malformed: %s" % (ANCHOR_INCLUSION_PROOF_INVALID, exc))
+
+    if proof.get("sth_root") != sth.get("root_hash") or proof.get("sth_tree_size") != sth.get("tree_size"):
+        failures.append(
+            "%s:inclusion_proof's checkpoint (root=%r, tree_size=%r) does not match the given "
+            "signed tree head (root=%r, tree_size=%r)"
+            % (
+                ANCHOR_CHECKPOINT_MISMATCH, proof.get("sth_root"), proof.get("sth_tree_size"),
+                sth.get("root_hash"), sth.get("tree_size"),
+            )
+        )
+    return (not failures), failures
 
 
 def main(argv):

@@ -11,6 +11,13 @@ license = { text = "Apache-2.0" }
 requires-python = ">=3.9"
 dependencies = ["cryptography"]
 
+# asn1crypto is required ONLY by verify_rfc3161_token (RFC 3161 CMS/ASN.1
+# token parsing) -- the base dispute-packet verification flow (main())
+# still needs nothing beyond cryptography. Install with
+# `pip install actaseal[rfc3161]` to use that one additive check.
+[project.optional-dependencies]
+rfc3161 = ["asn1crypto"]
+
 [tool.setuptools]
 py-modules = ["verify"]
 
