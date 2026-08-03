@@ -55,11 +55,26 @@ import sys
 from pathlib import Path
 
 # Receipt signature algorithms this verifier knows how to check. Must stay
-# in lock-step with actaseal.signing.ALGORITHM_*. Both branches use only
-# the 'cryptography' package this script already requires (see module
-# docstring) -- adding an algorithm here must never add a new dependency.
+# in lock-step with actaseal.signing.ALGORITHM_*. The Ed25519/ECDSA
+# branches use only the 'cryptography' package this script already
+# requires (see module docstring). The ML-DSA / hybrid branches below
+# need the optional 'oqs' package (liboqs-python) -- lazily imported only
+# when a receipt actually names one of those algorithms, so a packet
+# signed classically still verifies on a machine without liboqs
+# installed, and this script's baseline dependency claim stays true.
 ALGORITHM_ED25519 = "ed25519"
 ALGORITHM_ECDSA_P256_SHA256 = "ecdsa-p256-sha256"
+ALGORITHM_ML_DSA_65 = "ml-dsa-65"
+ALGORITHM_ML_DSA_87 = "ml-dsa-87"
+# Hybrid classical+PQ (ONESHOT-MONEY T2, ActaSeal private repo): signature
+# and public_key_hex are each this verifier's own raw-bytes hex, one layer
+# outside a "<ed25519_hex>.<ml_dsa_65_hex>" ASCII-encoded pair -- PASS
+# requires BOTH halves to verify independently. Stripping the PQ half to
+# present a bare Ed25519 signature under this algorithm tag must fail the
+# format check before either half's crypto is even touched (downgrade
+# resistance is the whole point of a hybrid mode).
+ALGORITHM_HYBRID_ED25519_ML_DSA_65 = "hybrid-ed25519-ml-dsa-65"
+HYBRID_PART_SEPARATOR = "."
 
 # Continuity-checkpoint failure codes (T8, ONESHOT-4 batch 3). Must stay
 # in lock-step with actaseal.anchoring's constants of the same names.
@@ -184,6 +199,57 @@ def verify_receipt(manifest, receipt, events, failures, crypto):
         elif algorithm == ALGORITHM_ECDSA_P256_SHA256:
             ecdsa_public_key = crypto["load_der_public_key"](bytes.fromhex(public_key_hex))
             ecdsa_public_key.verify(signature_bytes, data, crypto["ecdsa_sha256"])
+        elif algorithm in (ALGORITHM_ML_DSA_65, ALGORITHM_ML_DSA_87):
+            try:
+                import oqs
+            except ImportError:
+                failures.append(
+                    "ALGORITHM_UNSUPPORTED: %s requires the optional 'oqs' package "
+                    "(pip install liboqs-python), which is not installed in this environment" % algorithm
+                )
+                return
+            oqs_name = "ML-DSA-65" if algorithm == ALGORITHM_ML_DSA_65 else "ML-DSA-87"
+            try:
+                with oqs.Signature(oqs_name) as verifier:
+                    if not verifier.verify(data, signature_bytes, bytes.fromhex(public_key_hex)):
+                        failures.append("RECEIPT_SIGNATURE_INVALID")
+            except Exception:
+                failures.append("RECEIPT_SIGNATURE_INVALID")
+        elif algorithm == ALGORITHM_HYBRID_ED25519_ML_DSA_65:
+            try:
+                dotted_signature = signature_bytes.decode("ascii")
+                dotted_public_key = bytes.fromhex(public_key_hex).decode("ascii")
+                ed_sig_hex, pq_sig_hex = dotted_signature.split(HYBRID_PART_SEPARATOR)
+                ed_pub_hex, pq_pub_hex = dotted_public_key.split(HYBRID_PART_SEPARATOR)
+                if not ed_sig_hex.strip() or not pq_sig_hex.strip() or not ed_pub_hex.strip() or not pq_pub_hex.strip():
+                    raise ValueError("empty hybrid part")
+            except (ValueError, UnicodeDecodeError):
+                failures.append(
+                    "INVALID_HYBRID_FORMAT: expected '<ed25519_hex>.<ml_dsa_65_hex>' for both "
+                    "signature and public_key"
+                )
+                return
+            try:
+                ed_public_key = crypto["ed25519_public_key_cls"].from_public_bytes(bytes.fromhex(ed_pub_hex))
+                ed_public_key.verify(bytes.fromhex(ed_sig_hex), data)
+            except (crypto["invalid_signature_error"], ValueError):
+                failures.append("RECEIPT_SIGNATURE_INVALID")
+                return
+            try:
+                import oqs
+            except ImportError:
+                failures.append(
+                    "ALGORITHM_UNSUPPORTED: hybrid-ed25519-ml-dsa-65's PQ half requires the "
+                    "optional 'oqs' package (pip install liboqs-python), which is not installed "
+                    "in this environment"
+                )
+                return
+            try:
+                with oqs.Signature("ML-DSA-65") as verifier:
+                    if not verifier.verify(data, bytes.fromhex(pq_sig_hex), bytes.fromhex(pq_pub_hex)):
+                        failures.append("RECEIPT_SIGNATURE_INVALID")
+            except Exception:
+                failures.append("RECEIPT_SIGNATURE_INVALID")
         else:
             failures.append("RECEIPT_SIGNATURE_ALGORITHM_UNKNOWN: %r" % algorithm)
             return
