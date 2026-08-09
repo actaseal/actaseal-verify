@@ -1,0 +1,130 @@
+{
+  "acquisition": {
+    "acquired_at": "2026-07-22T06:28:32.554005+00:00",
+    "acquired_by": "conformance-suite",
+    "acquisition_method": "contiguous ProofLedger slice export via actaseal.dispute.packet.build_dispute_packet; verification is re-derivation (verify.py), not trust in the exporter",
+    "chain_of_custody": [
+      {
+        "action": "captured ledger slice and receipt into dispute packet",
+        "actor": "conformance-suite",
+        "at": "2026-07-22T06:28:32.554005+00:00"
+      }
+    ],
+    "clock_source": "host system clock (UTC); not a trusted time source",
+    "external_anchor": null,
+    "gaps": [
+      "no external anchor proof: packet rests on the internal hash chain only; an RFC 3161/QTSP or transparency-log AnchorProof is needed for an independent timestamp the signer cannot backdate"
+    ],
+    "ledger_root_hash": "621ef24696fa25d895ab58f39bd2f368e21ba4c1b8b56711e7cf0a90811004f1",
+    "schema_version": "acquisition_report.v1",
+    "source_ledger_path": "/tmp/tmpi3iss2o7/clean_allow/ledger.ndjson",
+    "tool": {
+      "name": "actaseal.dispute.packet.build_dispute_packet",
+      "version": "dispute-exporter/2"
+    }
+  },
+  "authentication": {
+    "basis": [
+      "FRE 901(b)(9)",
+      "FRE 902(13)",
+      "FRE 902(14)"
+    ],
+    "canonicalization": "canonical JSON (sorted keys, compact separators, no NaN)",
+    "external_anchor_log_id": null,
+    "hash_algorithm": "sha256",
+    "mandate_hash": null,
+    "schema_version": "authentication_statement.v1",
+    "signer_key_id": "conformance-key-1",
+    "signer_pubkey_hash": "a0638268050d2f67c8726cbf450032fd795ac21a0b27069f8822f75d71b5bb2b",
+    "statement": "Each ledger event's payload_hash and event_hash, the chain links, and the receipt's Ed25519 signature re-derive from the packet's own content via verify.py (zero actaseal imports); accuracy rests on that re-derivation, not on the exporter's say-so. Gaps are declared in acquisition.json, never papered over."
+  },
+  "custody": {
+    "action_id": "action-conformance-1",
+    "custody_events": [
+      {
+        "action": "captured contiguous ledger slice and signed receipt",
+        "actor": "conformance-suite",
+        "at": "2026-07-22T06:28:32.554005+00:00",
+        "ledger_event_hash": "18c7e42eb8982b93d5cbbe8e286533d3a6a481875fdc18bd4bbdcf864649968c",
+        "sequence": 0
+      },
+      {
+        "action": "sealed capture into dispute packet zip with offline verifier",
+        "actor": "conformance-suite",
+        "at": "2026-07-22T06:28:32.554005+00:00",
+        "ledger_event_hash": "18c7e42eb8982b93d5cbbe8e286533d3a6a481875fdc18bd4bbdcf864649968c",
+        "sequence": 1
+      }
+    ],
+    "schema_version": "chain_of_custody.v1"
+  },
+  "ledger_slice_lines": [
+    "{\"action_id\":\"action-conformance-1\",\"action_type\":\"refund_request\",\"actor_id\":\"actor-1\",\"event_hash\":\"c698ab689145d07867415fba1701c6474e52089462c34ab42de8b57e6eff0a23\",\"event_id\":\"df508d4cdc90211464be180f4b5b300566960470dbfd480a35457ae03830c73c\",\"event_type\":\"ActionSubmitted\",\"payload\":{\"action_packet_hash\":\"d0876f711f88e9acda7eb63985fc35cc8ee5addc82bdb41d054da4c1b66e0960\",\"actor_packet_hash\":\"e64a27158d97ab85868e8091287c8155cb97e441940511313f2f6e6f80c35d70\",\"caller_claims_ignored\":false,\"requested_mode\":\"LOCAL_DEMO\"},\"payload_hash\":\"29f8118de4a3e62e306ef578fa30e634bdaadec3dd1b65d46631a5c8f9fac2cf\",\"previous_event_hash\":null,\"schema_version\":\"ledger_event.v1\",\"tenant_id\":\"tenant-conformance\",\"timestamp\":\"2026-07-22T06:28:32.550358+00:00\",\"workspace_id\":\"workspace-conformance\"}",
+    "{\"action_id\":\"action-conformance-1\",\"action_type\":\"refund_request\",\"actor_id\":\"actor-1\",\"event_hash\":\"aa49654e2e369af8c063e1489f1914eccf6df86d0352cc952cee6b00be6737e4\",\"event_id\":\"b3c0785cf9b822763c3626af5f28c50d82dc5ea161b56b06adb735d0f18dc8e6\",\"event_type\":\"SchemaValidated\",\"payload\":{\"action_packet_hash\":\"d0876f711f88e9acda7eb63985fc35cc8ee5addc82bdb41d054da4c1b66e0960\",\"actor_packet_hash\":\"e64a27158d97ab85868e8091287c8155cb97e441940511313f2f6e6f80c35d70\",\"schema_validated\":true},\"payload_hash\":\"37b68c3bc25279b4f5d36186a28edf51b3c6d4da80ec36ef773bec79ae1d318f\",\"previous_event_hash\":\"c698ab689145d07867415fba1701c6474e52089462c34ab42de8b57e6eff0a23\",\"schema_version\":\"ledger_event.v1\",\"tenant_id\":\"tenant-conformance\",\"timestamp\":\"2026-07-22T06:28:32.550523+00:00\",\"workspace_id\":\"workspace-conformance\"}",
+    "{\"action_id\":\"action-conformance-1\",\"action_type\":\"refund_request\",\"actor_id\":\"actor-1\",\"event_hash\":\"21687c81def566b0ef7f17315e3e4ad5b508ef740e05d0c7f1fcdd0e42805440\",\"event_id\":\"3d4d34b45cbd96255d1d74b123289472996fabfe6bd85ab4b014c0dd81f90c28\",\"event_type\":\"ActorValidated\",\"payload\":{\"action_packet_hash\":\"d0876f711f88e9acda7eb63985fc35cc8ee5addc82bdb41d054da4c1b66e0960\",\"actor_packet_hash\":\"e64a27158d97ab85868e8091287c8155cb97e441940511313f2f6e6f80c35d70\",\"tenant_scope\":\"tenant-conformance\",\"workspace_scope\":\"workspace-conformance\"},\"payload_hash\":\"dcfe367276a766e25adbdbf1e7e505821a4de8f9c727090c9c00edebd92a3486\",\"previous_event_hash\":\"aa49654e2e369af8c063e1489f1914eccf6df86d0352cc952cee6b00be6737e4\",\"schema_version\":\"ledger_event.v1\",\"tenant_id\":\"tenant-conformance\",\"timestamp\":\"2026-07-22T06:28:32.550670+00:00\",\"workspace_id\":\"workspace-conformance\"}",
+    "{\"action_id\":\"action-conformance-1\",\"action_type\":\"refund_request\",\"actor_id\":\"actor-1\",\"event_hash\":\"7bfee3fbf747a091bc74287bc7db7d6921c21dac9dd6ef11893f1f4fee63e257\",\"event_id\":\"6e81aec9c08eef5b0c91ebbf6d4d8d141be641a128d476e422ce9193e9da31a0\",\"event_type\":\"PolicyBound\",\"payload\":{\"action_packet_hash\":\"d0876f711f88e9acda7eb63985fc35cc8ee5addc82bdb41d054da4c1b66e0960\",\"actor_packet_hash\":\"e64a27158d97ab85868e8091287c8155cb97e441940511313f2f6e6f80c35d70\",\"policy_hash\":\"4df43337a5fb72fff1a80692dcc1c3db27cde235cdcebed541b27cebb9ed0a72\",\"policy_id\":\"support_refund_promise_policy\",\"policy_version\":\"support_refund_promise_policy.v1\"},\"payload_hash\":\"f0fde06d5db823c661ac5f0b06acac159a7e4f9f0283f56095b5009a732128a7\",\"previous_event_hash\":\"21687c81def566b0ef7f17315e3e4ad5b508ef740e05d0c7f1fcdd0e42805440\",\"schema_version\":\"ledger_event.v1\",\"tenant_id\":\"tenant-conformance\",\"timestamp\":\"2026-07-22T06:28:32.550811+00:00\",\"workspace_id\":\"workspace-conformance\"}",
+    "{\"action_id\":\"action-conformance-1\",\"action_type\":\"refund_request\",\"actor_id\":\"actor-1\",\"event_hash\":\"e0c461620ad28e98c2fa0fe7ee6f7f673068e28a57cbf05461d12dfa3798e31c\",\"event_id\":\"451a3fd26118c8de73da1b53074ca52507adb426097bd9e61cc51fd6f0a82f41\",\"event_type\":\"EvidenceVerified\",\"payload\":{\"action_packet_hash\":\"d0876f711f88e9acda7eb63985fc35cc8ee5addc82bdb41d054da4c1b66e0960\",\"actor_packet_hash\":\"e64a27158d97ab85868e8091287c8155cb97e441940511313f2f6e6f80c35d70\",\"claim_authorities\":{\"payment_captured\":\"payment_processor\",\"purchase_exists\":\"order_system\",\"refund_not_duplicate\":\"refund_ledger\"},\"evidence_authorities\":[\"order_system\",\"payment_processor\",\"refund_ledger\"],\"evidence_claims_verified\":[\"payment_captured\",\"purchase_exists\",\"refund_not_duplicate\"],\"evidence_packet_hashes\":[\"adc4f88b4c23975d24877617db495eed7e0e9a617abb4b98cb720502961fde75\",\"68cd9ae3476beb0e49c8461018b9d348a500039d40886447caefa2d47abe2b1a\",\"01e8d174c0f177d4ffaf6841dde19baa284ae0535407789af5a29d74a64e8f1b\"],\"evidence_status\":\"PASS\",\"failure_codes\":[],\"invalid_evidence_ids\":[],\"missing_claims\":[],\"policy_hash\":\"4df43337a5fb72fff1a80692dcc1c3db27cde235cdcebed541b27cebb9ed0a72\"},\"payload_hash\":\"5fcc61857021a0961034aca0dc34618e0350cfec004391202972614fc59bf329\",\"previous_event_hash\":\"7bfee3fbf747a091bc74287bc7db7d6921c21dac9dd6ef11893f1f4fee63e257\",\"schema_version\":\"ledger_event.v1\",\"tenant_id\":\"tenant-conformance\",\"timestamp\":\"2026-07-22T06:28:32.551488+00:00\",\"workspace_id\":\"workspace-conformance\"}",
+    "{\"action_id\":\"action-conformance-1\",\"action_type\":\"refund_request\",\"actor_id\":\"actor-1\",\"event_hash\":\"b5b5050d0a4a85be1a37057a801125a4b6297b478703c4f0d2cde28d2866ac8e\",\"event_id\":\"373b48c3470ef7f17cde1a2f4bc88cf495603d962f7017f083e6a46874ebd3bc\",\"event_type\":\"IdempotencyChecked\",\"payload\":{\"action_packet_hash\":\"d0876f711f88e9acda7eb63985fc35cc8ee5addc82bdb41d054da4c1b66e0960\",\"actor_packet_hash\":\"e64a27158d97ab85868e8091287c8155cb97e441940511313f2f6e6f80c35d70\",\"allowed_to_continue\":true,\"idempotency_status\":\"CLEAR\",\"policy_hash\":\"4df43337a5fb72fff1a80692dcc1c3db27cde235cdcebed541b27cebb9ed0a72\",\"reason_code\":\"IDEMPOTENCY_CLEAR\"},\"payload_hash\":\"5c0970980e4a563fab41ccc629514fca67d30b4daf183c292a614812982574e9\",\"previous_event_hash\":\"e0c461620ad28e98c2fa0fe7ee6f7f673068e28a57cbf05461d12dfa3798e31c\",\"schema_version\":\"ledger_event.v1\",\"tenant_id\":\"tenant-conformance\",\"timestamp\":\"2026-07-22T06:28:32.551726+00:00\",\"workspace_id\":\"workspace-conformance\"}",
+    "{\"action_id\":\"action-conformance-1\",\"action_type\":\"refund_request\",\"actor_id\":\"actor-1\",\"event_hash\":\"32602b5e67f20d66f81728a29e500ca4bbb7b37f2f33a9a6c7c5ae63e47c6b38\",\"event_id\":\"f5c79659784e0574ab281d03b2d623efc8ec968dd5721027c785dd779ad3c5b7\",\"event_type\":\"DecisionComputed\",\"payload\":{\"action_packet_hash\":\"d0876f711f88e9acda7eb63985fc35cc8ee5addc82bdb41d054da4c1b66e0960\",\"actor_packet_hash\":\"e64a27158d97ab85868e8091287c8155cb97e441940511313f2f6e6f80c35d70\",\"allowed_to_execute\":true,\"enforcement_action\":\"EXECUTION_PERMITTED\",\"evidence_status\":\"PASS\",\"idempotency_status\":\"CLEAR\",\"mandate_hash\":null,\"policy_hash\":\"4df43337a5fb72fff1a80692dcc1c3db27cde235cdcebed541b27cebb9ed0a72\",\"reason_code\":\"POLICY_ALLOW\",\"verdict\":\"ALLOW\"},\"payload_hash\":\"9860d7135b19164d0e208c8f51e52bfd2aebde693e5d24a727aa7b227608421a\",\"previous_event_hash\":\"b5b5050d0a4a85be1a37057a801125a4b6297b478703c4f0d2cde28d2866ac8e\",\"schema_version\":\"ledger_event.v1\",\"tenant_id\":\"tenant-conformance\",\"timestamp\":\"2026-07-22T06:28:32.551920+00:00\",\"workspace_id\":\"workspace-conformance\"}",
+    "{\"action_id\":\"action-conformance-1\",\"action_type\":\"refund_request\",\"actor_id\":\"actor-1\",\"event_hash\":\"6db913a6830d49df6c98a2ee0e472aeb8a94ea25bf026d027dda06570b11798e\",\"event_id\":\"bb5461e5c961bdf7493511b020bb6e7f860900e18e8b1be850de1c3149ad21ae\",\"event_type\":\"ScopeEvaluated\",\"payload\":{\"action_hash\":\"36129532cb4e251e1089f8b9f95ebfd09a1aebf12629511915506b3303ab2344\",\"action_packet_hash\":\"d0876f711f88e9acda7eb63985fc35cc8ee5addc82bdb41d054da4c1b66e0960\",\"breach_dimensions\":[],\"executed_action\":{\"amount_minor\":10000,\"category\":null,\"currency\":\"INR\",\"extra_observed\":{},\"merchant_ref\":null,\"rail\":\"ap2\",\"sequence_index\":null,\"settled_at\":null},\"intent_scope\":{\"allowed_categories\":null,\"allowed_merchant_refs\":null,\"allowed_rails\":[\"ap2\"],\"amount_max_minor\":20000,\"currency\":\"INR\",\"extra_constraints\":null,\"max_count\":null,\"not_after\":null,\"not_before\":null},\"scope_hash\":\"a30c32d53c5b358113177961a3831e9c7198ceb48ba1b650ec436edd4348d536\",\"verdict\":\"IN_SCOPE\"},\"payload_hash\":\"0330ace635bd89e3c3122193ea815c3e251d6277318fb3b5edf7f401c600f5f3\",\"previous_event_hash\":\"32602b5e67f20d66f81728a29e500ca4bbb7b37f2f33a9a6c7c5ae63e47c6b38\",\"schema_version\":\"ledger_event.v1\",\"tenant_id\":\"tenant-conformance\",\"timestamp\":\"2026-07-22T06:28:32.552157+00:00\",\"workspace_id\":\"workspace-conformance\"}",
+    "{\"action_id\":\"action-conformance-1\",\"action_type\":\"refund_request\",\"actor_id\":\"actor-1\",\"event_hash\":\"ee4536dd5f47768a5125cb0ad8926dcbbfff2ad2e6ab22e7261f595ed573f8ad\",\"event_id\":\"509d69c60cb8ba4832582d03a2201f7f077be5b1158558b8ef877cc8aafea39e\",\"event_type\":\"ReceiptStructured\",\"payload\":{\"action_packet_hash\":\"d0876f711f88e9acda7eb63985fc35cc8ee5addc82bdb41d054da4c1b66e0960\",\"receipt_hash\":\"d24b2059740d9fa41f11665a3c2da041ad0b462a779031fc90f5025a76fbd6a5\",\"signed\":true},\"payload_hash\":\"77f0c60f5da2b83ddb8e2730d6d0cd33acf96b942aa4def977d1a999644e8ccb\",\"previous_event_hash\":\"6db913a6830d49df6c98a2ee0e472aeb8a94ea25bf026d027dda06570b11798e\",\"schema_version\":\"ledger_event.v1\",\"tenant_id\":\"tenant-conformance\",\"timestamp\":\"2026-07-22T06:28:32.552632+00:00\",\"workspace_id\":\"workspace-conformance\"}",
+    "{\"action_id\":\"action-conformance-1\",\"action_type\":\"refund_request\",\"actor_id\":\"actor-1\",\"event_hash\":\"a275e319965b47ed1c2fc37141a7d051576ee251c7aaceece71bec0eca08cb17\",\"event_id\":\"27f776f9857cdd3629fb69782b03e268b0171a9c0f10259d033652d790768b56\",\"event_type\":\"ReceiptSigned\",\"payload\":{\"action_packet_hash\":\"d0876f711f88e9acda7eb63985fc35cc8ee5addc82bdb41d054da4c1b66e0960\",\"key_id\":\"conformance-key-1\",\"receipt_hash\":\"d24b2059740d9fa41f11665a3c2da041ad0b462a779031fc90f5025a76fbd6a5\",\"signer_pubkey_hash\":\"a0638268050d2f67c8726cbf450032fd795ac21a0b27069f8822f75d71b5bb2b\"},\"payload_hash\":\"1f1d90ef5cf818d40322d12f2b5c5e8d6f2efa07523c66cdbc8e66281de3b8fe\",\"previous_event_hash\":\"ee4536dd5f47768a5125cb0ad8926dcbbfff2ad2e6ab22e7261f595ed573f8ad\",\"schema_version\":\"ledger_event.v1\",\"tenant_id\":\"tenant-conformance\",\"timestamp\":\"2026-07-22T06:28:32.552892+00:00\",\"workspace_id\":\"workspace-conformance\"}",
+    "{\"action_id\":\"action-conformance-1\",\"action_type\":\"refund_request\",\"actor_id\":\"actor-1\",\"event_hash\":\"21581150cf730537a69af12a85c370301d57072254d8126828965c385613f6c8\",\"event_id\":\"582030b2da5090c78b0c95d333a82dda7e64fc2024db216ddee03151cbbda266\",\"event_type\":\"ConnectorModeBound\",\"payload\":{\"action_packet_hash\":\"d0876f711f88e9acda7eb63985fc35cc8ee5addc82bdb41d054da4c1b66e0960\",\"actor_packet_hash\":\"e64a27158d97ab85868e8091287c8155cb97e441940511313f2f6e6f80c35d70\",\"allowed_to_execute\":true,\"mode\":\"LOCAL_DEMO\",\"policy_hash\":\"4df43337a5fb72fff1a80692dcc1c3db27cde235cdcebed541b27cebb9ed0a72\",\"requires_no_mutation\":true},\"payload_hash\":\"12142ad62965f5d20dcff6104f60b70984a45bbda09d613a213c1df27575fb2c\",\"previous_event_hash\":\"a275e319965b47ed1c2fc37141a7d051576ee251c7aaceece71bec0eca08cb17\",\"schema_version\":\"ledger_event.v1\",\"tenant_id\":\"tenant-conformance\",\"timestamp\":\"2026-07-22T06:28:32.553103+00:00\",\"workspace_id\":\"workspace-conformance\"}",
+    "{\"action_id\":\"action-conformance-1\",\"action_type\":\"refund_request\",\"actor_id\":\"actor-1\",\"event_hash\":\"53fb0459a6e476f19d3050099acb39735c0bcfe40d80cd1e898133c446fac759\",\"event_id\":\"4984bee3c04fe2cdaa800ff82a19287cde1dc854508015310c4cd0b69ed0bc5d\",\"event_type\":\"ConnectorReceiptCaptured\",\"payload\":{\"action_packet_hash\":\"d0876f711f88e9acda7eb63985fc35cc8ee5addc82bdb41d054da4c1b66e0960\",\"actor_packet_hash\":\"e64a27158d97ab85868e8091287c8155cb97e441940511313f2f6e6f80c35d70\",\"allowed_to_execute\":true,\"live_mutation_performed\":false,\"mode\":\"LOCAL_DEMO\",\"policy_hash\":\"4df43337a5fb72fff1a80692dcc1c3db27cde235cdcebed541b27cebb9ed0a72\",\"receipt_type\":\"local_dry_run_no_live_mutation\"},\"payload_hash\":\"ff8738e6a8c4b1ce7d33f2157df6f4d70c8097475014d7425813ebb75f968643\",\"previous_event_hash\":\"21581150cf730537a69af12a85c370301d57072254d8126828965c385613f6c8\",\"schema_version\":\"ledger_event.v1\",\"tenant_id\":\"tenant-conformance\",\"timestamp\":\"2026-07-22T06:28:32.553318+00:00\",\"workspace_id\":\"workspace-conformance\"}",
+    "{\"action_id\":\"action-conformance-1\",\"action_type\":\"refund_request\",\"actor_id\":\"actor-1\",\"event_hash\":\"18c7e42eb8982b93d5cbbe8e286533d3a6a481875fdc18bd4bbdcf864649968c\",\"event_id\":\"5d5e4878c9c21d7b2a2ba1a42a4b1030a61f65f73fb7cd7564494e065d3da8c1\",\"event_type\":\"Finalized\",\"payload\":{\"action_packet_hash\":\"d0876f711f88e9acda7eb63985fc35cc8ee5addc82bdb41d054da4c1b66e0960\",\"actor_packet_hash\":\"e64a27158d97ab85868e8091287c8155cb97e441940511313f2f6e6f80c35d70\",\"allowed_to_execute\":true,\"decision_event_id\":\"f5c79659784e0574ab281d03b2d623efc8ec968dd5721027c785dd779ad3c5b7\",\"enforcement_action\":\"EXECUTION_PERMITTED\",\"mode\":\"LOCAL_DEMO\",\"policy_hash\":\"4df43337a5fb72fff1a80692dcc1c3db27cde235cdcebed541b27cebb9ed0a72\",\"verdict\":\"ALLOW\"},\"payload_hash\":\"38cbd94bf6354f10e2edb9792967b3cbae5e3ba084e0e08b5aea09799e6d2087\",\"previous_event_hash\":\"53fb0459a6e476f19d3050099acb39735c0bcfe40d80cd1e898133c446fac759\",\"schema_version\":\"ledger_event.v1\",\"tenant_id\":\"tenant-conformance\",\"timestamp\":\"2026-07-22T06:28:32.553530+00:00\",\"workspace_id\":\"workspace-conformance\"}"
+  ],
+  "manifest": {
+    "action_id": "action-conformance-1",
+    "chain_start_previous_event_hash": null,
+    "event_count": 13,
+    "receipt_public_key_hex": "9a443b1056c4cb1c7b277baf0d1909d3d853856bd518661ae88c1b76ea5ff2b4",
+    "schema_version": "dispute_packet.v1",
+    "scope_conformance_headline": "in_scope",
+    "settlement_anchor": {
+      "status": "SETTLEMENT_UNANCHORED"
+    },
+    "validation_material_present": false
+  },
+  "receipt": {
+    "action_hash": "d0876f711f88e9acda7eb63985fc35cc8ee5addc82bdb41d054da4c1b66e0960",
+    "agent_credential_ref": null,
+    "agent_id": null,
+    "algorithm": "ed25519",
+    "approval_event_hash": null,
+    "approver_reason": null,
+    "approver_snapshot_hash": null,
+    "args_hash": null,
+    "assurance_level": null,
+    "decision": "ALLOW",
+    "dispute_context": null,
+    "evidence_set_hash": "d41a2a0f6e07a096b97a2b7a945080c74f1b3c2236808a6a9135443a7aa9e60d",
+    "hash_algorithm": null,
+    "key_id": "conformance-key-1",
+    "ledger_entry_hash": "32602b5e67f20d66f81728a29e500ca4bbb7b37f2f33a9a6c7c5ae63e47c6b38",
+    "mandate_hash": null,
+    "model_context": null,
+    "on_behalf_of": null,
+    "policy_hash": "4df43337a5fb72fff1a80692dcc1c3db27cde235cdcebed541b27cebb9ed0a72",
+    "purpose": null,
+    "rail_anchors_hash": null,
+    "reason_code": "POLICY_ALLOW",
+    "receipt_format_version": null,
+    "scope_conformance": {
+      "action_hash": "36129532cb4e251e1089f8b9f95ebfd09a1aebf12629511915506b3303ab2344",
+      "breaches": [],
+      "scope_hash": "a30c32d53c5b358113177961a3831e9c7198ceb48ba1b650ec436edd4348d536",
+      "unconstrained": [
+        "merchant_ref",
+        "category",
+        "validity_window",
+        "count"
+      ],
+      "verdict": "IN_SCOPE"
+    },
+    "signature": "0a0e0fde8bad9e5f9d10d9e6de78174193cc2ab5bfb5d815889ee9622627adfccf7a3402428aeaf8e771b955696f6b3f4e5b63171fe6d1b484255d6e6caa2601",
+    "signer_pubkey_hash": "a0638268050d2f67c8726cbf450032fd795ac21a0b27069f8822f75d71b5bb2b",
+    "timestamp": "2026-07-22T06:28:32.552333+00:00",
+    "tool_name": null,
+    "tsa_anchor": null
+  }
+}
