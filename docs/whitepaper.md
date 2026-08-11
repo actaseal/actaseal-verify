@@ -125,14 +125,15 @@ on this project's own product code, no dependency on a database, and no
 network call anywhere in it — it reads only the files inside the packet
 directory, plus the Python standard library and the third-party
 `cryptography` package for signature checks. This isn't a claim you have
-to take on faith: the file is roughly 360 lines, readable in one
+to take on faith: the file is roughly 1,230 lines, readable in one
 sitting, and the public repo's test suite includes a static assertion
 that it never imports anything beyond that. A counterparty who doesn't
 trust the vendor doesn't have to trust the vendor's server, either —
 they run the check themselves, on their own machine, against a copy of
 the exact file that produced the `VERIFIED` result, because every packet
-embeds that file's literal bytes, hash-pinned against the published copy
-in this repository so the two cannot silently drift apart.
+embeds that file's literal bytes -- byte-for-byte identical to the copy
+published in this repository, which anyone can diff for themselves, and
+which this repository's own test suite asserts on every commit.
 
 ### 4.2 Payment-anchor binding
 
