@@ -53,8 +53,7 @@ a bare timestamp was never the actual product a dispute needs.
 longevity risk.</strong> A notarization product whose entire value
 depends on one blockchain's continued operation (or one company's
 continued operation) inherits that chain's or company's own
-sustainability risk. See <code>docs/trust/multi_tsa_failover.md</code>
-(private repo) and this repository's own multi-anchor posture
+sustainability risk. This repository's own multi-anchor posture
 (RFC 3161 pool + transparency log, never a single point of witness) —
 built as a direct response to this exact failure mode.
 </div>
@@ -63,11 +62,11 @@ built as a direct response to this exact failure mode.
 <strong>Lesson 3 — token/business-model sustainability is a separate
 risk from cryptographic soundness.</strong> Several of these projects'
 underlying cryptography was never shown to be broken; what failed was
-the business wrapped around it. See
-<code>docs/trust/termination_plan.md</code> (private repo) for how
-this system is designed so that verification survives the operating
-company ceasing to exist — the receipt-signing key was never held by
-the company to begin with, and the standalone verifier
+the business wrapped around it. This system is designed so that
+verification survives the operating company ceasing to exist: every
+packet embeds its own trust root (the signing key is carried in the
+manifest, so no live service or key registry is ever consulted), and
+the standalone verifier
 (<code>verify.py</code>, this repository) has zero dependency on any
 company's continued operation.
 </div>
