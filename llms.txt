@@ -21,7 +21,7 @@ Exit code 2 means the `cryptography` package is missing.
 
 ## Key files
 
-- [verify.py](verify.py): the canonical verifier, ~700 lines, one file,
+- [verify.py](verify.py): the canonical verifier, ~1,230 lines, one file,
   read the whole thing to know exactly what it checks -- no framework,
   no magic, no hidden network calls.
 - [README.md](README.md): human-facing quickstart, GitHub Action usage,
