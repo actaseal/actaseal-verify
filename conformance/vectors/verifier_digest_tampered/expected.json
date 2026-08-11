@@ -1,0 +1,8 @@
+{
+  "exit_code": 1,
+  "must_include_failure_substrings": [
+    "VERIFIER_DIGEST_MISMATCH"
+  ],
+  "proves": "A packet whose manifest.json declares a verifier_sha256 that does not match the running verify.py's own body hash fails closed -- catches a swapped-out verify.py before any of its other checks are trusted.",
+  "verified": false
+}

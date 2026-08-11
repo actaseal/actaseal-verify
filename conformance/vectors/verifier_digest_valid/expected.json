@@ -1,0 +1,6 @@
+{
+  "exit_code": 0,
+  "must_include_failure_substrings": [],
+  "proves": "A packet whose manifest.json declares the correct verifier_sha256 (the digest pin) verifies cleanly -- the running verify.py's own body hash matches the pin.",
+  "verified": true
+}

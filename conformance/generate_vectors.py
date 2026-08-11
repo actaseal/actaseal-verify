@@ -203,6 +203,49 @@ def build_rotated_key_still_verifies_vector() -> None:
     )
 
 
+def build_verifier_digest_valid_vector() -> None:
+    """TASK 1 (private repo)/TASK 2 (this carry-over): manifest.json's
+    "verifier_sha256" pin, registered as a real conformance vector --
+    the previous pass added the field and the self-check in verify.py
+    but never a vector proving a correctly-pinned packet verifies. The
+    digest is computed the SAME way verify.py's own
+    verifier_body_sha256 does (strips leading '#' lines), over the
+    REAL verify.py this conformance suite's subprocess actually runs."""
+    from verify import verifier_body_sha256
+
+    manifest, receipt, events, acquisition, custody, authentication = build_packet(anchored=True)
+    manifest = dict(manifest, verifier_sha256=verifier_body_sha256((REPO_ROOT / "verify.py").read_bytes()))
+    directory = VECTORS_DIR / "verifier_digest_valid"
+    _write_packet(directory, manifest, receipt, events, acquisition, custody, authentication)
+    _write_expected(
+        directory,
+        verified=True,
+        must_include=[],
+        proves="A packet whose manifest.json declares the correct verifier_sha256 (the digest "
+        "pin) verifies cleanly -- the running verify.py's own body hash matches the pin.",
+    )
+
+
+def build_verifier_digest_tampered_vector() -> None:
+    manifest, receipt, events, acquisition, custody, authentication = build_packet(anchored=True)
+    # Well-formed 64-char hex, deliberately wrong -- distinct from
+    # VERIFIER_DIGEST_MALFORMED (a not-hex-shaped value), which this
+    # vector set deliberately does NOT also cover: MALFORMED is a
+    # format check exercised directly in the private repo's own
+    # test_verifier_digest_pin_v1.py, not duplicated here.
+    manifest = dict(manifest, verifier_sha256="0" * 64)
+    directory = VECTORS_DIR / "verifier_digest_tampered"
+    _write_packet(directory, manifest, receipt, events, acquisition, custody, authentication)
+    _write_expected(
+        directory,
+        verified=False,
+        must_include=["VERIFIER_DIGEST_MISMATCH"],
+        proves="A packet whose manifest.json declares a verifier_sha256 that does not match the "
+        "running verify.py's own body hash fails closed -- catches a swapped-out verify.py "
+        "before any of its other checks are trusted.",
+    )
+
+
 def write_pin() -> None:
     entries = []
     for path in sorted(VECTORS_DIR.rglob("*")):
@@ -218,6 +261,8 @@ DISPUTE_PACKET_VECTOR_NAMES = (
     "tampered_chain",
     "wrong_signature",
     "rotated_key_still_verifies",
+    "verifier_digest_valid",
+    "verifier_digest_tampered",
 )
 
 
@@ -240,6 +285,8 @@ def main() -> int:
     build_tampered_chain_vector()
     build_wrong_signature_vector()
     build_rotated_key_still_verifies_vector()
+    build_verifier_digest_valid_vector()
+    build_verifier_digest_tampered_vector()
     write_pin()
     print(f"Wrote vectors to {VECTORS_DIR}")
     print(f"Pinned {PIN_FILE}")
