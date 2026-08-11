@@ -106,6 +106,28 @@ VERIFIER_SUPPORTS_ROOT_VERSIONS = ("v1", "v2")
 LEDGER_ROOT_VERSION_V1 = "v1"
 LEDGER_ROOT_VERSION_UNKNOWN = "LEDGER_ROOT_VERSION_UNKNOWN"
 
+# TASK 4 (21 CFR 11.50): ApprovalResponse payload_version values this
+# verifier knows how to field-check for the three 11.50(a) manifestation
+# fields (signature_meaning, signer_printed_name, payload_version itself
+# -- actaseal.gateway.approvals.ApprovalResponse / gateway.runtime's
+# resolve_approval). "v1" -- the pre-11.50 shape every pre-existing
+# approver client already signs -- carries none of these fields and is
+# never checked, same pre-migration posture as
+# VERIFIER_SUPPORTS_ROOT_VERSIONS's missing-field case. A packet
+# declaring a payload_version NOT in this tuple fails loudly
+# (APPROVAL_PAYLOAD_VERSION_UNKNOWN), never silently treated as v1 or
+# passed through unchecked. Analogous capability-declaration pattern to
+# VERIFIER_SUPPORTS_ROOT_VERSIONS above / verifier_gate.py's use of it
+# in the private repo -- the product reads THIS marker (via the private
+# repo's actaseal.dispute.verifier_gate) and does not emit an approval
+# manifestation the pinned verifier cannot check.
+VERIFIER_SUPPORTS_APPROVAL_PAYLOAD_VERSIONS = ("v1", "v2")
+APPROVAL_SIGNATURE_MEANINGS = ("approval", "review", "responsibility", "authorship")
+APPROVAL_PAYLOAD_VERSION_UNKNOWN = "APPROVAL_PAYLOAD_VERSION_UNKNOWN"
+APPROVAL_MANIFESTATION_FIELD_MISSING = "APPROVAL_MANIFESTATION_FIELD_MISSING"
+APPROVAL_SIGNATURE_MEANING_INVALID = "APPROVAL_SIGNATURE_MEANING_INVALID"
+APPROVAL_MANIFESTATION_INCONSISTENT = "APPROVAL_MANIFESTATION_INCONSISTENT"
+
 SCHEMA_VERSION = "dispute_packet.v1"
 EVENT_ID_BASIS = "ledger_event_id.v1"
 EVENT_MATERIAL_FIELDS = (
@@ -736,6 +758,66 @@ def verify_approver_snapshot(manifest, receipt, events, failures):
         )
 
 
+def verify_approval_manifestation(receipt, events, failures):
+    """TASK 4 (21 CFR 11.50): when this receipt's approval_event_hash
+    names an ApprovalGranted/ApprovalDenied event whose payload declares
+    payload_version "v2" (actaseal.gateway.approvals.
+    APPROVAL_PAYLOAD_VERSION_V2), the three 11.50(a) manifestation
+    fields on that event -- signature_meaning, signer_printed_name,
+    payload_version itself -- must all be present, signature_meaning
+    must be one of the closed set the regulation's own parenthetical
+    lists (review/approval/responsibility/authorship), and the event's
+    action_hash must match this receipt's own action_hash (the same
+    binding gateway.runtime.resolve_approval enforces live, re-checked
+    here from the packet's own content rather than trusted).
+
+    No approval_event_hash at all (an auto-approved / no-approval-
+    required action): not applicable, no failure -- same posture as
+    verify_approver_snapshot's missing-field case. An event whose
+    payload_version is "v1" or absent entirely: pre-11.50, not invalid,
+    never checked -- every pre-existing approver client keeps verifying
+    exactly as it always did. A payload_version outside
+    VERIFIER_SUPPORTS_APPROVAL_PAYLOAD_VERSIONS fails loudly
+    (APPROVAL_PAYLOAD_VERSION_UNKNOWN) rather than silently skipping the
+    check or treating it as v1."""
+    approval_event_hash = receipt.get("approval_event_hash")
+    if approval_event_hash is None:
+        return
+
+    approval_events = [event for event in events if event.get("event_hash") == approval_event_hash]
+    if not approval_events:
+        # Every OTHER check in this verifier that binds a receipt field
+        # to a ledger event (verify_receipt's ledger_entry_hash binding,
+        # verify_approver_snapshot) already fails this case by a
+        # different name; this function does not duplicate that failure.
+        return
+    payload = approval_events[-1].get("payload") or {}
+    payload_version = payload.get("payload_version")
+    if payload_version is None or payload_version == "v1":
+        return
+    if payload_version not in VERIFIER_SUPPORTS_APPROVAL_PAYLOAD_VERSIONS:
+        failures.append("%s: %r" % (APPROVAL_PAYLOAD_VERSION_UNKNOWN, payload_version))
+        return
+
+    missing = [
+        field_name
+        for field_name in ("signature_meaning", "signer_printed_name", "payload_version")
+        if not payload.get(field_name)
+    ]
+    if missing:
+        failures.append("%s: %s" % (APPROVAL_MANIFESTATION_FIELD_MISSING, ", ".join(sorted(missing))))
+        return
+
+    if payload["signature_meaning"] not in APPROVAL_SIGNATURE_MEANINGS:
+        failures.append("%s: %r" % (APPROVAL_SIGNATURE_MEANING_INVALID, payload["signature_meaning"]))
+
+    if payload.get("action_hash") != receipt.get("action_hash"):
+        failures.append(
+            "%s: ApprovalGranted/Denied event action_hash %r does not match receipt.json's action_hash %r"
+            % (APPROVAL_MANIFESTATION_INCONSISTENT, payload.get("action_hash"), receipt.get("action_hash"))
+        )
+
+
 def verify_ledger_head_anchor(base, failures, anchors_path):
     """Given an external anchor log (a jsonl file of {root_hash,
     anchored_at, status, ...} records -- see
@@ -1270,6 +1352,7 @@ def main(argv):
     verify_authentication_docs(receipt, events, base, failures)
     verify_scope_conformance(manifest, receipt, events, failures)
     verify_approver_snapshot(manifest, receipt, events, failures)
+    verify_approval_manifestation(receipt, events, failures)
     verify_ledger_head_anchor(base, failures, anchors_path)
     verify_settlement_anchor(manifest, failures)
 
