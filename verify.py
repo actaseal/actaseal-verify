@@ -518,6 +518,61 @@ def verify_ledger_root_version(base, failures):
     return version
 
 
+VERIFIER_DIGEST_MISMATCH = "VERIFIER_DIGEST_MISMATCH"
+VERIFIER_DIGEST_MALFORMED = "VERIFIER_DIGEST_MALFORMED"
+
+
+def verifier_body_sha256(source_bytes):
+    """The verifier's own logic, hashed independent of any leading
+    '#'-prefixed lines (a shebang, or -- see
+    tools/public-release/bundle_single_file_verifier.py in the private
+    repo -- a whole provenance comment banner prepended ahead of it).
+    A '#' line is a no-op to the Python parser, so two files that agree
+    on everything else are the same verifier even if one carries extra
+    header comments the other doesn't; TASK 1's digest pin is defined
+    over that shared body so the single-file bundled distribution
+    (byte-different from the canonical file ONLY in its banner, per its
+    own module docstring) still satisfies a manifest pinned against the
+    canonical file, and vice versa."""
+    lines = source_bytes.decode("utf-8").splitlines()
+    index = 0
+    while index < len(lines) and lines[index].startswith("#"):
+        index += 1
+    body = "\n".join(lines[index:])
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def verify_offline_verifier_digest(manifest, failures):
+    """TASK 1 (pin the shipped verifier): manifest.json's "verifier_sha256"
+    is verifier_body_sha256() of the exact bytes packet.py wrote into
+    this zip as verify.py -- i.e. of THIS file's own bytes (banner
+    lines aside), since this script only ever runs as that copy, the
+    source template it was copied from, or the single-file bundled
+    distribution, all of which share the same body. Recomputing it here
+    means a tampered verify.py -- swapped for one that always prints
+    VERIFIED -- is caught before its own checks are trusted.
+
+    Missing field entirely: this packet predates TASK 1 and never
+    declared a digest -- treated as pre-pin, not invalid, same posture
+    as verify_ledger_root_version's missing-field case. Present but not
+    a well-formed sha256 hex digest: fails loudly
+    (VERIFIER_DIGEST_MALFORMED), never silently skipped. Present and
+    well-formed but mismatched: VERIFIER_DIGEST_MISMATCH, fail closed,
+    never a warning."""
+    declared = manifest.get("verifier_sha256")
+    if declared is None:
+        return
+    if not isinstance(declared, str) or len(declared) != 64 or any(c not in "0123456789abcdef" for c in declared.lower()):
+        failures.append("%s: %r is not a 64-character hex sha256 digest" % (VERIFIER_DIGEST_MALFORMED, declared))
+        return
+    actual = verifier_body_sha256(Path(__file__).resolve().read_bytes())
+    if actual != declared.lower():
+        failures.append(
+            "%s: manifest declares %s, this file's own body hashes to %s"
+            % (VERIFIER_DIGEST_MISMATCH, declared, actual)
+        )
+
+
 def verify_authentication_docs(receipt, events, base, failures):
     """FRE 901(b)(9) / 902(13)-(14) posture: the acquisition report,
     chain-of-custody doc, and authentication statement must be present
@@ -1207,6 +1262,7 @@ def main(argv):
         print("  UNREADABLE_PACKET: %s" % exc)
         return 1
 
+    verify_offline_verifier_digest(manifest, failures)
     verify_ledger_root_version(base, failures)
     verify_events(manifest, events, failures)
     verify_receipt(manifest, receipt, events, failures, crypto)
