@@ -41,6 +41,12 @@
   }
   button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
   .note { color: var(--dim); font-size: 0.85em; margin-top: 1em; }
+  .limits-box {
+    background: var(--bg-raised); border: 1px solid var(--border); border-radius: 8px;
+    padding: 0.9em 1.1em; max-width: 700px; color: var(--dim); font-size: 0.85em;
+    line-height: 1.6; margin-bottom: 1.5em;
+  }
+  .limits-box code { color: var(--text); }
 </style>
 </head>
 <body>
@@ -50,11 +56,28 @@
   A real, signed ActaSeal dispute packet (manifest, receipt, ledger slice), loaded below.
   Edit any field and verification re-runs live, entirely in your browser -- no server, no
   network request, nothing sent anywhere. Break the hash chain or the signature and watch
-  it turn red immediately. This exercises the same checks
-  <a href="../verify.py" style="color:var(--accent)">verify.py</a> runs offline, ported to
+  it turn red immediately. This runs a small subset of what
+  <a href="../verify.py" style="color:var(--accent)">verify.py</a> checks offline, ported to
   JavaScript (<a href="verify_min.js" style="color:var(--accent)">verify_min.js</a>) using
   the browser's native WebCrypto Ed25519 support -- no bundled crypto library.
 </p>
+
+<div class="limits-box" id="limits-box">
+  <strong>What this page checks:</strong> ledger hash-chain integrity (every event's
+  payload hash, event id, event hash, and link to the previous event) and the receipt's
+  Ed25519 signature.
+  <br><strong>What it does NOT check:</strong> ECDSA/PQ/hybrid-signed receipts, the
+  verifier's own digest pin, the ledger's schema/root version, RFC 9162 continuity
+  checkpoints, authentication-document
+  evidence, scope conformance, approver-snapshot and approval-manifestation integrity,
+  ledger-head transparency anchoring, settlement-anchor validity, or
+  <code>--archive-export</code> mode (RFC 3161 timestamps, SCITT receipts).
+  A packet this page says is clean has only cleared two of the checks a real receipt
+  needs -- for an authoritative verdict, run the real
+  <a href="../verify.py" style="color:var(--accent)">verify.py</a> offline. See
+  <a href="../conformance/js_parity/parity_manifest.json" style="color:var(--accent)">the parity manifest</a>
+  for the full, code-derived list of what is and isn't ported.
+</div>
 
 <div class="status-bar">
   <span id="status-badge" class="badge pending">Loading…</span>
