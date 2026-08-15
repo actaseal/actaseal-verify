@@ -1,0 +1,258 @@
+{
+  "$schema_note": "Machine-derived parity manifest between verify.py and tamper_demo/verify_min.js. Regenerate with scripts/generate_js_parity_manifest.py; do not hand-edit -- this file itself is a build artifact with a sync-drift guard (tests/test_js_parity_manifest_in_sync.py).",
+  "verify_py_path": "verify.py",
+  "verify_min_js_path": "tamper_demo/verify_min.js",
+  "entries": [
+    {
+      "verify_py_function": "verify_approval_manifestation",
+      "verify_py_failure_codes": [
+        "TASK"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported. No JS counterpart exists.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_approver_snapshot",
+      "verify_py_failure_codes": [
+        "APPROVER_SNAPSHOT_EVENT_MISSING",
+        "APPROVER_SNAPSHOT_HASH_MISMATCH"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported. No JS counterpart exists.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_archive_export",
+      "verify_py_failure_codes": [
+        "ARCHIVE_EXPORT_NO_SCITT_CHAIN",
+        "ARCHIVE_EXPORT_NO_TSA_CHAIN",
+        "ARCHIVE_EXPORT_SCITT_CHAIN",
+        "ARCHIVE_EXPORT_TSA_CHAIN",
+        "UNREADABLE_ARCHIVE_EXPORT"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported. verify_min.js has no --archive-export equivalent at all -- a structurally different manifest shape.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_archive_export_ledger_slice",
+      "verify_py_failure_codes": [
+        "EVENT_HASH_MISMATCH",
+        "EVENT_ID_MISMATCH",
+        "PAYLOAD_HASH_MISMATCH"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported. verify_min.js has no --archive-export equivalent at all -- a structurally different manifest shape.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_authentication_docs",
+      "verify_py_failure_codes": [
+        "ACQUISITION_CLOCK_SOURCE_UNDECLARED",
+        "ACQUISITION_REPORT_MISSING",
+        "ACQUISITION_TIME_UNDECLARED",
+        "ACQUISITION_TOOL_UNDECLARED",
+        "AUTHENTICATION_",
+        "AUTHENTICATION_ANCHOR_LOG_MISMATCH",
+        "AUTHENTICATION_HASH_ALGO_MISMATCH",
+        "AUTHENTICATION_STATEMENT_MISSING",
+        "CUSTODY_DOC_MISSING",
+        "CUSTODY_EMPTY",
+        "CUSTODY_EVENT_UNBOUND",
+        "CUSTODY_ORDER_INVALID",
+        "FRE"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported. No JS counterpart exists.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_continuity_checkpoint",
+      "verify_py_failure_codes": [
+        "CHECKPOINT_DOC_MALFORMED",
+        "CHECKPOINT_DOC_MISSING",
+        "CONSISTENCY_PROOF_MISSING",
+        "INCLUSION_PROOF_MISSING"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported (RFC 9162 Merkle inclusion/consistency proof checking). No JS counterpart exists.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_events",
+      "verify_py_failure_codes": [
+        "ACTION_NOT_IN_SLICE",
+        "CHAIN_BROKEN",
+        "CHAIN_START_MISMATCH",
+        "EMPTY_LEDGER_SLICE",
+        "EVENT_COUNT_MISMATCH",
+        "EVENT_HASH_MISMATCH",
+        "EVENT_ID_MISMATCH",
+        "MALFORMED_EVENT",
+        "MANIFEST_SCHEMA_MISMATCH",
+        "PAYLOAD_HASH_MISMATCH"
+      ],
+      "js_function": "verifyEvents",
+      "js_failure_codes": [
+        "ACTION_NOT_IN_SLICE",
+        "CHAIN_BROKEN",
+        "CHAIN_START_MISMATCH",
+        "EMPTY_LEDGER_SLICE",
+        "EVENT_COUNT_MISMATCH",
+        "EVENT_HASH_MISMATCH",
+        "EVENT_ID_MISMATCH",
+        "MALFORMED_EVENT",
+        "MANIFEST_SCHEMA_MISMATCH",
+        "PAYLOAD_HASH_MISMATCH"
+      ],
+      "status": "full",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "verifyEvents in verify_min.js ports this function's full code set.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_ledger_head_anchor",
+      "verify_py_failure_codes": [
+        "ACQUISITION_REPORT_MISSING",
+        "ANCHOR_CHECK_NO_LEDGER_ROOT_HASH",
+        "ANCHOR_ENTRY_NOT_FOUND",
+        "ANCHOR_LOG_UNREADABLE"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported. No JS counterpart exists.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_ledger_root_version",
+      "verify_py_failure_codes": [
+        "ACQUISITION_REPORT_MISSING"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported. No JS counterpart exists.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_offline_verifier_digest",
+      "verify_py_failure_codes": [
+        "TASK"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not applicable to verify_min.js by construction: this check verifies verify.py's OWN running source hash against a pin in manifest.json. verify_min.js is a different file with no self-digest concept -- there is nothing to port.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_receipt",
+      "verify_py_failure_codes": [
+        "ALGORITHM_UNSUPPORTED",
+        "INVALID_HYBRID_FORMAT",
+        "RECEIPT_ACTION_HASH_MISMATCH",
+        "RECEIPT_BOUND_TO_DIFFERENT_ACTION",
+        "RECEIPT_LEDGER_ENTRY_NOT_IN_SLICE",
+        "RECEIPT_SIGNATURE_ALGORITHM_UNKNOWN",
+        "RECEIPT_SIGNATURE_INVALID"
+      ],
+      "js_function": "verifyReceipt",
+      "js_failure_codes": [
+        "RECEIPT_BOUND_TO_DIFFERENT_ACTION",
+        "RECEIPT_LEDGER_ENTRY_NOT_IN_SLICE",
+        "RECEIPT_SIGNATURE_ALGORITHM_UNSUPPORTED_IN_DEMO",
+        "RECEIPT_SIGNATURE_INVALID"
+      ],
+      "status": "partial",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "verifyReceipt in verify_min.js ports only the Ed25519 signing branch (ECDSA/ML-DSA/hybrid branches are not ported -- a non-ed25519 algorithm is reported as RECEIPT_SIGNATURE_ALGORITHM_UNSUPPORTED_IN_DEMO instead of being evaluated) and does not port the RECEIPT_ACTION_HASH_MISMATCH check (recorded_action_hash vs receipt.action_hash).",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_rfc3161_token",
+      "verify_py_failure_codes": [
+        "ATTESTATION"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported (RFC 3161 timestamp token checking, --archive-export mode only). No JS counterpart exists.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_scitt_receipt",
+      "verify_py_failure_codes": [
+        "ATTESTATION"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported (SCITT transparency receipt checking, --archive-export mode only). No JS counterpart exists.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_scope_conformance",
+      "verify_py_failure_codes": [
+        "SCOPE_DIMENSIONS_MISMATCH",
+        "SCOPE_EVENT_MISSING",
+        "SCOPE_HASH_MISMATCH",
+        "SCOPE_HEADLINE_MISMATCH",
+        "SCOPE_HEADLINE_MISSING",
+        "SCOPE_RESULT_MISSING",
+        "SCOPE_VERDICT_MISMATCH"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported. No JS counterpart exists.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_settlement_anchor",
+      "verify_py_failure_codes": [
+        "SETTLEMENT_ANCHOR_HASH_MISMATCH",
+        "SETTLEMENT_ANCHOR_INVALID",
+        "SETTLEMENT_FIELD_MISSING",
+        "SETTLEMENT_UNANCHORED"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported. No JS counterpart exists.",
+      "status_note_derived_from": "hand-asserted"
+    }
+  ],
+  "summary": {
+    "full": 1,
+    "partial": 1,
+    "none": 13,
+    "total": 15
+  }
+}
