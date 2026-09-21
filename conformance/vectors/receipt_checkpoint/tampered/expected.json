@@ -1,0 +1,8 @@
+{
+  "exit_code": 1,
+  "mode": "FAIL",
+  "must_include_substrings": [
+    "CHAIN_BROKEN"
+  ],
+  "proves": "A tampered ledger slice (broken previous_event_hash link) combined with an unresolvable signing key fails outright -- neither SIGNATURE_VERIFIED nor CHAIN_VERIFIED_KEY_UNKNOWN is reachable."
+}

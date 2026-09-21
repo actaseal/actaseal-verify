@@ -1,0 +1,6 @@
+{
+  "exit_code": 0,
+  "mode": "SIGNATURE_VERIFIED",
+  "must_include_substrings": [],
+  "proves": "A receipt whose signing key resolves and independently verifies passes as SIGNATURE_VERIFIED -- the strongest verdict -- even when a --checkpoint hash that would also independently pass is supplied alongside it."
+}

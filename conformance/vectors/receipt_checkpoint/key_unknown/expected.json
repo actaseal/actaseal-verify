@@ -1,0 +1,6 @@
+{
+  "exit_code": 0,
+  "mode": "CHAIN_VERIFIED_KEY_UNKNOWN",
+  "must_include_substrings": [],
+  "proves": "A receipt presented with an unresolvable/rotated-away signing key still PASSes when its ledger_entry_hash is bound into an unbroken chain that also contains the out-of-band --checkpoint hash -- reported as CHAIN_VERIFIED_KEY_UNKNOWN, a third verdict distinct from SIGNATURE_VERIFIED and never conflated with it."
+}

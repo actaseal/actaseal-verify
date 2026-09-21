@@ -246,6 +246,155 @@ def build_verifier_digest_tampered_vector() -> None:
     )
 
 
+def _canonical_receipt_dumps(value):
+    return canonical_dumps(value)
+
+
+def _sign_receipt_fields(private_key, receipt_without_signature):
+    data = _canonical_receipt_dumps(receipt_without_signature).encode("utf-8")
+    signed = dict(receipt_without_signature)
+    signed["signature"] = private_key.sign(data).hex()
+    return signed
+
+
+def _unsigned_checkpoint_receipt():
+    return dict(
+        decision="ALLOW",
+        reason_code="OK",
+        action_hash="a" * 64,
+        mandate_hash=None,
+        evidence_set_hash="b" * 64,
+        ledger_entry_hash="c" * 64,
+        approval_event_hash=None,
+        agent_id="agent-1",
+        tool_name="issue_refund",
+        args_hash="d" * 64,
+        purpose=None,
+        key_id=None,
+        rail_anchors_hash=None,
+        scope_conformance=None,
+        timestamp="2026-07-17T00:00:00+00:00",
+    )
+
+
+def _checkpoint_chain(receipt, previous_event_hash="genesis"):
+    return [
+        {"event_hash": "e1", "previous_event_hash": previous_event_hash},
+        {"event_hash": receipt["ledger_entry_hash"], "previous_event_hash": "e1"},
+    ]
+
+
+def _write_receipt_vector(directory: Path, document: dict, *, mode: str, exit_code: int, proves: str,
+                           must_include: list[str] | None = None) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "input.json").write_text(_canonical_receipt_dumps(document), encoding="utf-8")
+    (directory / "expected.json").write_text(
+        json.dumps(
+            {
+                "exit_code": exit_code,
+                "mode": mode,
+                "must_include_substrings": must_include or [],
+                "proves": proves,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def build_receipt_checkpoint_signature_verified_vector() -> None:
+    """verify_receipt.py's T5 checkpoint mode: a key that DOES resolve
+    independently of the checkpoint wins outright -- SIGNATURE_VERIFIED,
+    the strongest verdict, reported even though --checkpoint was also
+    supplied and would independently pass on its own."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    private_key = Ed25519PrivateKey.generate()
+    public_key_hex = private_key.public_key().public_bytes_raw().hex()
+    receipt = _sign_receipt_fields(private_key, _unsigned_checkpoint_receipt())
+    document = {
+        "receipt": receipt,
+        "receipt_public_key_hex": public_key_hex,
+        "ledger_slice": _checkpoint_chain(receipt),
+    }
+    directory = VECTORS_DIR / "receipt_checkpoint" / "signature_verified"
+    _write_receipt_vector(
+        directory,
+        document,
+        mode="SIGNATURE_VERIFIED",
+        exit_code=0,
+        proves="A receipt whose signing key resolves and independently verifies passes as "
+        "SIGNATURE_VERIFIED -- the strongest verdict -- even when a --checkpoint hash that "
+        "would also independently pass is supplied alongside it.",
+    )
+
+
+def build_receipt_checkpoint_key_unknown_vector() -> None:
+    """The signing key is NOT independently resolvable (a different,
+    unrelated key is presented, simulating rotation) but the ledger
+    slice forms an unbroken chain containing both the receipt's
+    ledger_entry_hash and the supplied --checkpoint hash -- PASSes on
+    hash-linkage alone, reported as the distinct CHAIN_VERIFIED_KEY_UNKNOWN
+    verdict, never as SIGNATURE_VERIFIED."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    signing_key = Ed25519PrivateKey.generate()
+    receipt = _sign_receipt_fields(signing_key, _unsigned_checkpoint_receipt())
+
+    unrelated_key = Ed25519PrivateKey.generate()
+    unrelated_public_key_hex = unrelated_key.public_key().public_bytes_raw().hex()
+    document = {
+        "receipt": receipt,
+        "receipt_public_key_hex": unrelated_public_key_hex,
+        "ledger_slice": _checkpoint_chain(receipt),
+    }
+    directory = VECTORS_DIR / "receipt_checkpoint" / "key_unknown"
+    _write_receipt_vector(
+        directory,
+        document,
+        mode="CHAIN_VERIFIED_KEY_UNKNOWN",
+        exit_code=0,
+        proves="A receipt presented with an unresolvable/rotated-away signing key still PASSes "
+        "when its ledger_entry_hash is bound into an unbroken chain that also contains the "
+        "out-of-band --checkpoint hash -- reported as CHAIN_VERIFIED_KEY_UNKNOWN, a third "
+        "verdict distinct from SIGNATURE_VERIFIED and never conflated with it.",
+    )
+
+
+def build_receipt_checkpoint_tampered_vector() -> None:
+    """Tampering the chain (breaking previous_event_hash) defeats BOTH
+    the legacy chain check and checkpoint mode -- neither PASS verdict
+    is reachable, the generic FAIL applies, distinct from both PASS
+    modes."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    signing_key = Ed25519PrivateKey.generate()
+    receipt = _sign_receipt_fields(signing_key, _unsigned_checkpoint_receipt())
+
+    unrelated_key = Ed25519PrivateKey.generate()
+    unrelated_public_key_hex = unrelated_key.public_key().public_bytes_raw().hex()
+    tampered_chain = _checkpoint_chain(receipt)
+    tampered_chain[1]["previous_event_hash"] = "not-e1"
+    document = {
+        "receipt": receipt,
+        "receipt_public_key_hex": unrelated_public_key_hex,
+        "ledger_slice": tampered_chain,
+    }
+    directory = VECTORS_DIR / "receipt_checkpoint" / "tampered"
+    _write_receipt_vector(
+        directory,
+        document,
+        mode="FAIL",
+        exit_code=1,
+        must_include=["CHAIN_BROKEN"],
+        proves="A tampered ledger slice (broken previous_event_hash link) combined with an "
+        "unresolvable signing key fails outright -- neither SIGNATURE_VERIFIED nor "
+        "CHAIN_VERIFIED_KEY_UNKNOWN is reachable.",
+    )
+
+
 def write_pin() -> None:
     entries = []
     for path in sorted(VECTORS_DIR.rglob("*")):
@@ -280,6 +429,9 @@ def main() -> int:
             child = VECTORS_DIR / name
             if child.exists():
                 shutil.rmtree(child)
+        receipt_checkpoint_dir = VECTORS_DIR / "receipt_checkpoint"
+        if receipt_checkpoint_dir.exists():
+            shutil.rmtree(receipt_checkpoint_dir)
     build_valid_vector()
     build_tampered_payload_vector()
     build_tampered_chain_vector()
@@ -287,6 +439,9 @@ def main() -> int:
     build_rotated_key_still_verifies_vector()
     build_verifier_digest_valid_vector()
     build_verifier_digest_tampered_vector()
+    build_receipt_checkpoint_signature_verified_vector()
+    build_receipt_checkpoint_key_unknown_vector()
+    build_receipt_checkpoint_tampered_vector()
     write_pin()
     print(f"Wrote vectors to {VECTORS_DIR}")
     print(f"Pinned {PIN_FILE}")
