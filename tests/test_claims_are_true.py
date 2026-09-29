@@ -81,3 +81,21 @@ def test_no_soc2_certification_claim():
         for phrase in ("soc 2 certified","soc 2 compliant","soc2 certified",
                        "soc 2 type ii report available","soc 2 attested"):
             assert phrase not in low, f"{f}: claims {phrase!r}, which is not true"
+
+
+def test_config_file_route_caveat_matches_the_schema():
+    """pricing.html says the configuration-file route is local-custody only.
+    That stops being true the moment BuyerConfig gains a signer field."""
+    schema = PRODUCT/"actaseal/config/schema.py"
+    page = ROOT/"pricing.html"
+    if not schema.exists() or not page.exists():
+        return
+    t = page.read_text(encoding="utf-8")
+    if "configuration-file route currently supports local" not in t:
+        return
+    src = schema.read_text(encoding="utf-8")
+    for token in ("signer_backend", "vault_token_ref", "pq_secret_key_ref",
+                  "kms_key_id_ref"):
+        assert token not in src, (
+            f"BuyerConfig now has {token!r}: the config-file caveat in "
+            "pricing.html is out of date")

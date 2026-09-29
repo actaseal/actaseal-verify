@@ -58,8 +58,10 @@ verifiable whether or not you are still a customer.
   <td>Multiple tenants, or an environment with its own key custody and
   network constraints.</td>
   <td>Everything in Firm, unlimited archived engagements. Multi-tenant
-  deployment. Air-gapped installation. AWS KMS key custody, so the
-  signing key never leaves your KMS. Dedicated onboarding and
+  deployment. Air-gapped installation. AWS KMS or HashiCorp Vault
+  Transit key custody, so the signing key never leaves your KMS or
+  Vault. Post-quantum receipt signing (ML-DSA-65, FIPS&nbsp;204) or
+  hybrid Ed25519&nbsp;+&nbsp;ML-DSA-65 signing. Dedicated onboarding and
   compliance review support.</td>
   <td class="price">from $120,000 / year</td>
 </tr>
@@ -69,6 +71,13 @@ verifiable whether or not you are still a customer.
 Foundation from &#8377;15,00,000 per year, Firm from &#8377;40,00,000
 per year, Enterprise scoped per programme. A component line item inside
 a larger assessment or transition programme is scoped separately.</p>
+
+<p>One detail worth stating rather than discovering: Vault Transit custody
+and post-quantum signing are selected through environment variables at
+startup. The alternative configuration-file route currently supports local
+key custody only, for every backend including AWS KMS. If your deployment
+must be driven entirely from a config file, say so before you buy and we
+will tell you where that stands.</p>
 
 <h2>What you are paying more for</h2>
 
@@ -117,12 +126,6 @@ checks in code and has not yet been reviewed by an independent
 tester.</strong> If that review is a condition of your deployment, say
 so and it goes in the contract.</p>
 
-<p><strong>Implemented and tested, but not yet selectable at boot:</strong>
-HashiCorp Vault Transit key custody, and post-quantum receipt signing
-with ML-DSA-65 (FIPS&nbsp;204) or hybrid Ed25519 + ML-DSA-65. The
-signing and verification paths and their tests exist; the deployment
-bootstrap accepts local and AWS KMS custody only. Do not buy a tier on
-the strength of these until they appear above this line.</p>
 </div>
 
 <h2>First references</h2>
