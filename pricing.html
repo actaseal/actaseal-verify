@@ -1,49 +1,137 @@
 <!doctype html>
-<title>Pricing (indicative) — actaseal-verify</title>
+<title>Pricing — actaseal-verify</title>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Indicative, draft pricing for ActaSeal -- design-partner free tier plus placeholder paid tiers, not final.">
+<meta name="description" content="ActaSeal pricing: three annual tiers priced per archived engagement, self-hosted, with the offline verifier included at every tier.">
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 760px; margin: 3rem auto; padding: 0 1.5rem; color: #1a1d21; line-height: 1.6; }
-  .notice { background: #fdf3e7; border: 1px solid #e3b873; border-radius: 6px; padding: 0.9rem 1.1rem; margin-bottom: 2rem; font-size: 0.92rem; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 760px; margin: 3rem auto; padding: 0 1.5rem; color: #1a1d21; line-height: 1.65; }
+  code { background: #f6f7f8; padding: 0.1rem 0.3rem; border-radius: 3px; }
+  .claim { background: #eaf5ef; border-left: 3px solid #1f6f4a; padding: 0.9rem 1.1rem; margin: 1.2rem 0; }
+  .limits { background: #fdf3e7; border-left: 3px solid #e3b873; padding: 0.9rem 1.1rem; margin: 1.2rem 0; font-size: 0.95rem; }
   table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; }
   th, td { border: 1px solid #dde1e5; padding: 0.7rem 0.9rem; text-align: left; vertical-align: top; }
   th { background: #f6f7f8; }
   .tier-name { font-weight: 600; }
-  .indicative { color: #8a5a1f; font-size: 0.85rem; }
+  .price { white-space: nowrap; font-variant-numeric: tabular-nums; }
   a { color: #1f6f4a; }
+  h2 { margin-top: 2.4rem; }
 </style>
 
 <h1>Pricing</h1>
 
-<div class="notice">
-  <strong>This page is a DRAFT.</strong> Every figure below is
-  indicative, not final, and not a binding quote. Actual pricing is
-  set per engagement during the design-partner/early-access process --
-  <a href="mailto:?subject=ActaSeal%20pricing%20question">contact us</a>
-  for a real conversation.
+<div class="claim">
+<strong>Priced per archived engagement, per year, self-hosted.</strong>
+Not per seat, because the unit an audit or legal-hold function already
+budgets in is the engagement or the matter, not the headcount that
+touched it. The offline verifier is included at every tier and is
+<a href="https://github.com/actaseal/actaseal-verify">published
+separately under the Apache License 2.0</a>, so what you produce stays
+verifiable whether or not you are still a customer.
 </div>
 
 <table>
-<tr><th>Tier</th><th>Who it's for</th><th>Price</th></tr>
+<tr><th>Tier</th><th>Who it's for</th><th>Included</th><th>Price</th></tr>
 <tr>
-  <td class="tier-name">Design partner</td>
-  <td>Early integrators helping shape the product in exchange for
-  deep engineering access and input into the roadmap.</td>
-  <td>Free during the design-partner period <span class="indicative">(indicative)</span></td>
+  <td class="tier-name">Foundation</td>
+  <td>A single practice or matter team putting its first evidence chain
+  under control.</td>
+  <td>Up to 25 archived engagements per year. Single tenant. Signed
+  decision receipts, hash-chained ledger, engagement archive lock,
+  retention and legal hold, evidence packs, examiner binder,
+  FRE&nbsp;902(13)/(14) certification package, BagIt and load-file
+  exports, offline verifier.</td>
+  <td class="price">$18,000 / year</td>
 </tr>
 <tr>
-  <td class="tier-name">Standard <span class="indicative">(indicative)</span></td>
-  <td>A production deployment past the design-partner phase, single
-  tenant/workspace.</td>
-  <td>Usage-based, per-decision <span class="indicative">(indicative -- exact metric and rate TBD)</span></td>
+  <td class="tier-name">Firm</td>
+  <td>A firm that has to show its own quality system worked, not just
+  that one file was locked.</td>
+  <td>Everything in Foundation, up to 150 archived engagements per
+  year. Multiple users and roles. Quality-management monitoring and
+  remediation pack, recurring-deficiency and overdue tracking,
+  internal-versus-regulator delta report, recurring regulator report
+  export, per-control evidence export.</td>
+  <td class="price">$48,000 / year</td>
 </tr>
 <tr>
-  <td class="tier-name">Enterprise <span class="indicative">(indicative)</span></td>
-  <td>Multi-tenant, compliance/legal-review support, dedicated
-  onboarding.</td>
-  <td>Custom <span class="indicative">(indicative)</span></td>
+  <td class="tier-name">Enterprise</td>
+  <td>Multiple tenants, or an environment with its own key custody and
+  network constraints.</td>
+  <td>Everything in Firm, unlimited archived engagements. Multi-tenant
+  deployment. Air-gapped installation. AWS KMS key custody, so the
+  signing key never leaves your KMS. Dedicated onboarding and
+  compliance review support.</td>
+  <td class="price">from $120,000 / year</td>
 </tr>
 </table>
+
+<p>Indian public-sector and enterprise procurement is quoted in INR:
+Foundation from &#8377;15,00,000 per year, Firm from &#8377;40,00,000
+per year, Enterprise scoped per programme. A component line item inside
+a larger assessment or transition programme is scoped separately.</p>
+
+<h2>What you are paying more for</h2>
+
+<p>Workflow systems store the evidence and record what happened to it.
+Ask one of them to prove a workpaper was locked before the documentation
+completion date and the proof is the vendor's own database saying so.
+That is an assertion, and it is only as good as the vendor's word and
+the vendor's continued existence.</p>
+
+<p>What ActaSeal produces instead is a signed artifact. A
+<code>PolicyDecisionReceipt</code> binds the policy, the action, the
+ledger entry and the terms document in force at decision time, and it
+verifies offline, from a public key, by a party who has never run
+ActaSeal and has no reason to trust us. The named artifacts that follow
+from that -- a PCAOB AS&nbsp;1215 documentation-completion archive lock,
+an FRE&nbsp;902(13)/(14) self-authenticating certification package, an
+FRCP&nbsp;37(e) preservation record, a 21&nbsp;CFR&nbsp;11.10(e)
+audit-trail review record -- are the artifacts themselves, not reports
+about them.</p>
+
+<p>The usual reason to discount a small vendor is the question of what
+happens if it disappears. Our answer is written down and testable
+rather than promised: the verifier is Apache-2.0 and published on its
+own, the packet format is
+<a href="spec_freeze.html">frozen per schema version</a> and that freeze
+is enforced by the verifier itself, every packet embeds its own trust
+root so no registry lookup is ever required, and the
+<a href="graveyard.html">graveyard</a> sets out what happened to the
+products that tried this before us. Evidence you produce today outlives
+this company by construction. That is a reason to pay more for it, not
+less.</p>
+
+<h2>What is not included, stated plainly</h2>
+
+<div class="limits">
+<p><strong>No SOC&nbsp;2 report.</strong> ActaSeal has not been audited
+under SOC&nbsp;2 Type&nbsp;II. If your vendor qualification requires one
+by name, we do not meet it today and will say so in writing.</p>
+
+<p><strong>No hosted service.</strong> Every tier is deployed inside
+your own infrastructure. There is no multi-customer service holding your
+evidence, which also means there is no hosted uptime commitment to buy.</p>
+
+<p><strong>Multi-tenant isolation is enforced by default-deny scope
+checks in code and has not yet been reviewed by an independent
+tester.</strong> If that review is a condition of your deployment, say
+so and it goes in the contract.</p>
+
+<p><strong>Implemented and tested, but not yet selectable at boot:</strong>
+HashiCorp Vault Transit key custody, and post-quantum receipt signing
+with ML-DSA-65 (FIPS&nbsp;204) or hybrid Ed25519 + ML-DSA-65. The
+signing and verification paths and their tests exist; the deployment
+bootstrap accepts local and AWS KMS custody only. Do not buy a tier on
+the strength of these until they appear above this line.</p>
+</div>
+
+<h2>First references</h2>
+
+<p>The first three deployments get the Firm tier at the Foundation rate,
+in exchange for being named as a reference and for a short written note
+on what did and did not work. The price on this page does not move; what
+changes is what we ask of you in return.</p>
+
+<p><a href="mailto:sales@actaseal.com?subject=ActaSeal%20pricing">sales@actaseal.com</a></p>
 
 <p><a href="/">&larr; Back</a></p>
