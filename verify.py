@@ -1367,10 +1367,27 @@ def main(argv):
                 print("  " + failure)
             return 1
         print("VERIFIED (archive export): ledger chain intact, workpaper set matches attestation")
+        # Named either way -- a check this mode CAN run but didn't (no
+        # trust root supplied) must say so by name, not just omit the
+        # positive line. Silence here reads as "nothing more to check,"
+        # which is false: these are independent-witness checks this
+        # export cannot self-certify (a fabricated pack can always ship
+        # a public key that matches its own embedded receipt), so their
+        # absence is a real, relevant gap for the reader to close by
+        # obtaining the real trust root out of band -- never something
+        # this tool can silently paper over.
         if tsa_ca_cert_paths:
             print("  RFC 3161 timestamp verified against the supplied CA bundle")
+        else:
+            print("  RFC 3161 timestamp NOT verified -- no --tsa-ca-cert given (get the TSA's CA cert out of band)")
         if sth_public_key_hex:
             print("  SCITT transparency receipt verified against the supplied public key")
+        else:
+            print(
+                "  SCITT transparency receipt NOT verified -- no --sth-public-key given "
+                "(get the deployment's public key out of band, e.g. its /.well-known/actaseal-keys.json "
+                "while it is live -- never trust a copy embedded in this pack itself)"
+            )
         return 0
     failures = []
     try:
