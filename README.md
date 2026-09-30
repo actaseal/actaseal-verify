@@ -101,7 +101,7 @@ network access -- it is standalone by construction (see the assertion in
 The only third-party package it needs is `cryptography`, for Ed25519/ECDSA
 signature checks. That means:
 
-- you can read the whole verifier in one sitting (~1,370 lines, no
+- you can read the whole verifier in one sitting (~1,550 lines, no
   framework, no magic) and know exactly what it checks;
 - you never run vendor code against your own systems to check evidence
   someone handed you -- it only reads files from the packet directory;

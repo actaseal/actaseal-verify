@@ -125,7 +125,7 @@ on this project's own product code, no dependency on a database, and no
 network call anywhere in it — it reads only the files inside the packet
 directory, plus the Python standard library and the third-party
 `cryptography` package for signature checks. This isn't a claim you have
-to take on faith: the file is roughly 1,370 lines, readable in one
+to take on faith: the file is roughly 1,550 lines, readable in one
 sitting, and the public repo's test suite includes a static assertion
 that it never imports anything beyond that. A counterparty who doesn't
 trust the vendor doesn't have to trust the vendor's server, either —

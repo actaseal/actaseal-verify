@@ -41,10 +41,13 @@ Trust root: receipt_public_key_hex in manifest.json. Compare it out of
 band against the gateway operator's published key -- a packet re-signed
 end to end with a different key is internally consistent.
 
-Usage: python verify.py [packet_dir] [--anchors PATH]
+Usage: python verify.py [packet_dir_or_zip] [--anchors PATH]
   [--archive-export] [--tsa-ca-cert PATH ...] [--sth-public-key HEX]
-  packet_dir defaults to this script's directory (an already-extracted
-  packet -- unzip first). --anchors is optional: when given, also
+  packet_dir_or_zip accepts EITHER a .zip packet (extracted into a fresh
+  temp directory automatically, with the same zip-slip/decompression-
+  bomb/symlink-member protections actaseal.dispute.safe_zip applies in
+  the private repo) OR an already-extracted directory -- and defaults to
+  this script's own directory if omitted. --anchors is optional: when given, also
   confirms this packet's ledger_root_hash was witnessed by a successful
   entry in the named anchor log (a jsonl file of transparency-anchor
   records, see actaseal.ledger_anchor / scripts/publish_anchor.py in the
@@ -66,6 +69,8 @@ codes.
 import hashlib
 import json
 import sys
+import tempfile
+import zipfile
 from pathlib import Path
 
 # Receipt signature algorithms this verifier knows how to check. Must stay
@@ -166,6 +171,111 @@ def canonical_dumps(value):
 
 def canonical_hash(value):
     return hashlib.sha256(canonical_dumps(value).encode("utf-8")).hexdigest()
+
+
+# --- safe zip extraction (a packet's most likely real-world shape is a
+# .zip someone downloaded, not an already-extracted directory) -- a
+# faithful, self-contained port of actaseal.dispute.safe_zip's checks,
+# not an import of it: this file must stay zero-ActaSeal-import so a
+# counterparty can run it without installing or trusting ActaSeal code
+# at all. Keep both in lock-step by hand; see
+# actaseal/dispute/safe_zip.py in the private repo for the source this
+# was ported from and its own test coverage
+# (tests/test_packet_zip_attack_surface_v1.py).
+UNSAFE_ZIP_MEMBER_NAME = "UNSAFE_ZIP_MEMBER_NAME"
+UNSAFE_ZIP_MEMBER_TYPE = "UNSAFE_ZIP_MEMBER_TYPE"
+DUPLICATE_ZIP_MEMBER = "DUPLICATE_ZIP_MEMBER"
+ZIP_MEMBER_TOO_LARGE = "ZIP_MEMBER_TOO_LARGE"
+ZIP_TOTAL_TOO_LARGE = "ZIP_TOTAL_TOO_LARGE"
+ZIP_TOO_MANY_MEMBERS = "ZIP_TOO_MANY_MEMBERS"
+ZIP_COMPRESSION_RATIO_TOO_HIGH = "ZIP_COMPRESSION_RATIO_TOO_HIGH"
+
+_ZIP_MAX_MEMBER_BYTES = 100 * 1024 * 1024  # 100MB
+_ZIP_MAX_TOTAL_BYTES = 250 * 1024 * 1024  # 250MB
+_ZIP_MAX_MEMBERS = 1000
+_ZIP_MAX_COMPRESSION_RATIO = 100  # inflated:compressed
+
+# Unix symlink mode bit, packed into ZipInfo.external_attr's high 16 bits.
+_S_IFLNK = 0o120000
+_S_IFMT_MASK = 0o170000
+
+
+class UnsafeZipError(ValueError):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
+def _is_symlink_member(info):
+    mode = info.external_attr >> 16
+    return (mode & _S_IFMT_MASK) == _S_IFLNK
+
+
+def _is_unsafe_zip_path(name):
+    if name.startswith("/") or name.startswith("\\"):
+        return True
+    parts = name.replace("\\", "/").split("/")
+    return ".." in parts
+
+
+def _validate_zip_members(zf):
+    infos = zf.infolist()
+    if len(infos) > _ZIP_MAX_MEMBERS:
+        raise UnsafeZipError(ZIP_TOO_MANY_MEMBERS, "zip has %d members, exceeding the cap of %d" % (len(infos), _ZIP_MAX_MEMBERS))
+    seen_names = set()
+    total_uncompressed = 0
+    for info in infos:
+        if info.filename in seen_names:
+            raise UnsafeZipError(DUPLICATE_ZIP_MEMBER, "duplicate member name: %r" % info.filename)
+        seen_names.add(info.filename)
+        if _is_unsafe_zip_path(info.filename):
+            raise UnsafeZipError(UNSAFE_ZIP_MEMBER_NAME, "unsafe member path: %r" % info.filename)
+        if _is_symlink_member(info):
+            raise UnsafeZipError(UNSAFE_ZIP_MEMBER_TYPE, "member is a symlink, not a regular file: %r" % info.filename)
+        if info.file_size > _ZIP_MAX_MEMBER_BYTES:
+            raise UnsafeZipError(
+                ZIP_MEMBER_TOO_LARGE,
+                "member %r is %d bytes uncompressed, exceeding the per-member cap of %d"
+                % (info.filename, info.file_size, _ZIP_MAX_MEMBER_BYTES),
+            )
+        if info.compress_size > 0 and info.file_size / info.compress_size > _ZIP_MAX_COMPRESSION_RATIO:
+            raise UnsafeZipError(
+                ZIP_COMPRESSION_RATIO_TOO_HIGH,
+                "member %r has compression ratio %.0f:1, exceeding the cap of %d:1 (likely a decompression bomb)"
+                % (info.filename, info.file_size / info.compress_size, _ZIP_MAX_COMPRESSION_RATIO),
+            )
+        total_uncompressed += info.file_size
+        if total_uncompressed > _ZIP_MAX_TOTAL_BYTES:
+            raise UnsafeZipError(ZIP_TOTAL_TOO_LARGE, "zip's total uncompressed size exceeds the cap of %d bytes" % _ZIP_MAX_TOTAL_BYTES)
+
+
+def resolve_packet_base(path_str):
+    """Turns the caller's positional argument into a directory to read
+    manifest.json (etc.) from -- extracting a .zip into a fresh temp
+    directory first if that's what was given. This is the actual shape
+    a packet ships in; a bare directory (from a caller who already
+    extracted it themselves) still works unchanged. Never silently
+    guesses: a path that is neither a valid zip nor a directory (or
+    doesn't exist at all) raises a clear, specific error naming what
+    was expected -- not the confusing NotADirectoryError/errno 20 that
+    naively joining "<path>/manifest.json" onto a .zip file used to
+    produce (indistinguishable from a tampered packet to a reader who
+    doesn't already know what errno 20 means)."""
+    path = Path(path_str)
+    if path.is_dir():
+        return path
+    if path.is_file():
+        if zipfile.is_zipfile(path):
+            extract_dir = Path(tempfile.mkdtemp(prefix="actaseal-verify-"))
+            with zipfile.ZipFile(path) as zf:
+                _validate_zip_members(zf)
+                zf.extractall(extract_dir)
+            return extract_dir
+        raise ValueError(
+            "%r is a file but not a zip archive -- pass either a .zip packet or an already-extracted directory"
+            % str(path)
+        )
+    raise ValueError("no such file or directory: %r" % str(path))
 
 
 def load_packet(base):
@@ -1345,7 +1455,23 @@ def main(argv):
         else:
             positional.append(arg)
 
-    base = Path(positional[0]) if positional else Path(__file__).resolve().parent
+    if positional:
+        try:
+            base = resolve_packet_base(positional[0])
+        except UnsafeZipError as exc:
+            print("VERIFICATION FAILED")
+            print("  %s: %s" % (exc.code, exc))
+            return 1
+        except ValueError as exc:
+            # Same "VERIFICATION FAILED" + exit 1 shape as an unreadable
+            # packet below (a bad path IS an unreadable packet) -- never
+            # exit 2, which this file reserves for a missing 'cryptography'
+            # dependency, an environment problem unrelated to the packet.
+            print("VERIFICATION FAILED")
+            print("  UNREADABLE_PACKET: %s" % exc)
+            return 1
+    else:
+        base = Path(__file__).resolve().parent
 
     # Auto-detected from the packet's own manifest.json unless the caller
     # already forced the mode with --archive-export -- an inspector who
