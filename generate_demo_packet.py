@@ -73,8 +73,14 @@ def _append_event(events: list[dict], *, event_type, tenant_id, workspace_id, ac
     return event
 
 
-def build_packet(*, anchored: bool) -> tuple[dict, dict, list[dict], dict, dict, dict]:
-    private_key = Ed25519PrivateKey.generate()
+def build_packet(*, anchored: bool, signing_key: Ed25519PrivateKey | None = None) -> tuple[dict, dict, list[dict], dict, dict, dict]:
+    """`signing_key`, if given, is used instead of minting a fresh random
+    key -- for a caller (conformance/generate_vectors.py) that needs
+    reproducible output across runs. Default is unchanged: a fresh
+    `Ed25519PrivateKey.generate()` every call, same as before this
+    parameter existed -- `python generate_demo_packet.py` and its own
+    tests are unaffected."""
+    private_key = signing_key if signing_key is not None else Ed25519PrivateKey.generate()
     public_key_hex = private_key.public_key().public_bytes_raw().hex()
 
     tenant_id = "demo-tenant"

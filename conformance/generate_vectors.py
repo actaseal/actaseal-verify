@@ -16,9 +16,31 @@ Run: python conformance/generate_vectors.py
 Then review the diff under conformance/vectors/ before committing --
 vectors.sha256 is a content pin (like ../offline_verifier.sha256 pins
 the synced verifier): it catches hand-edited vector files that were
-never regenerated through this script, it does not claim byte-for-byte
-reproducibility across runs (each run mints a fresh Ed25519 key, same
-as generate_demo_packet.py itself).
+never regenerated through this script.
+
+Deterministic: every signing key this script uses is a fixed,
+PUBLISHED TEST KEY (see _fixed_ed25519_key below), not a freshly minted
+one -- regenerating with no underlying content change now produces
+byte-identical output. This matters specifically because this repo is
+PUBLIC and this exact corpus is what third-party implementers pin: a
+fresh random key on every run used to churn every single vector file on
+every regeneration (confirmed directly -- 593c2e0 touched 23+ files, two
+lines each, purely because the embedded verifier's own self-digest
+changed), which made a genuinely hand-edited vector and a routine,
+no-op regeneration produce IDENTICAL-LOOKING diffs, defeating the "review
+the diff before committing" review this docstring itself asks for, and
+meant every regeneration was a false breakage for whoever pins this
+corpus. generate_demo_packet.build_packet() keeps its own default
+behavior unchanged (a fresh random key on every call, unless this script
+passes signing_key= explicitly) -- see that function's own docstring.
+
+One known, real exception, checked rather than assumed: none. This
+corpus contains no PQ/ML-DSA signing at all (grepped: neither
+generate_demo_packet.py nor this file import liboqs/oqs or reference
+ML-DSA) and no ECDSA either (Ed25519 only, throughout) -- so there is no
+hedged-signature caveat to document here, unlike the private repo's own
+generate_vectors.py, which does sign some vectors with ML-DSA and must
+document that exception.
 """
 from __future__ import annotations
 
@@ -27,12 +49,28 @@ import json
 import sys
 from pathlib import Path
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from generate_demo_packet import build_packet, canonical_dumps  # noqa: E402
 
 VECTORS_DIR = Path(__file__).resolve().parent / "vectors"
+
+
+def _fixed_ed25519_key(label: str) -> Ed25519PrivateKey:
+    """PUBLISHED TEST KEY -- NOT A REAL CREDENTIAL, NOT A SECRET.
+    Deterministically derives an Ed25519 private key from a fixed,
+    hardcoded, PUBLIC label string below. Anyone can recompute this
+    exact key from the label alone by reading this function -- there is
+    nothing to protect and nothing resembling real key material. Used
+    only to make this PUBLIC conformance corpus reproducible across
+    regenerations (see this module's own docstring); never reuse this
+    key, or this derivation scheme, for anything that needs to be
+    trusted or kept secret, in this repo or any other."""
+    seed = hashlib.sha256(("actaseal-verify-conformance-PUBLISHED-TEST-KEY:" + label).encode("utf-8")).digest()
+    return Ed25519PrivateKey.from_private_bytes(seed)
 PIN_FILE = Path(__file__).resolve().parent / "vectors.sha256"
 
 PACKET_FILES = (
@@ -86,7 +124,9 @@ def _write_events(directory: Path, events: list[dict]) -> None:
 
 
 def build_valid_vector() -> None:
-    manifest, receipt, events, acquisition, custody, authentication = build_packet(anchored=True)
+    manifest, receipt, events, acquisition, custody, authentication = build_packet(
+        anchored=True, signing_key=_fixed_ed25519_key("valid")
+    )
     directory = VECTORS_DIR / "valid"
     _write_packet(directory, manifest, receipt, events, acquisition, custody, authentication)
     _write_expected(
@@ -99,7 +139,9 @@ def build_valid_vector() -> None:
 
 
 def build_tampered_payload_vector() -> None:
-    manifest, receipt, events, acquisition, custody, authentication = build_packet(anchored=True)
+    manifest, receipt, events, acquisition, custody, authentication = build_packet(
+        anchored=True, signing_key=_fixed_ed25519_key("tampered_payload")
+    )
     directory = VECTORS_DIR / "tampered_payload"
     _write_packet(directory, manifest, receipt, events, acquisition, custody, authentication)
 
@@ -119,7 +161,9 @@ def build_tampered_payload_vector() -> None:
 
 
 def build_tampered_chain_vector() -> None:
-    manifest, receipt, events, acquisition, custody, authentication = build_packet(anchored=True)
+    manifest, receipt, events, acquisition, custody, authentication = build_packet(
+        anchored=True, signing_key=_fixed_ed25519_key("tampered_chain")
+    )
     directory = VECTORS_DIR / "tampered_chain"
     _write_packet(directory, manifest, receipt, events, acquisition, custody, authentication)
 
@@ -140,7 +184,9 @@ def build_tampered_chain_vector() -> None:
 
 
 def build_wrong_signature_vector() -> None:
-    manifest, receipt, events, acquisition, custody, authentication = build_packet(anchored=True)
+    manifest, receipt, events, acquisition, custody, authentication = build_packet(
+        anchored=True, signing_key=_fixed_ed25519_key("wrong_signature")
+    )
     directory = VECTORS_DIR / "wrong_signature"
     _write_packet(directory, manifest, receipt, events, acquisition, custody, authentication)
 
@@ -162,9 +208,9 @@ def build_wrong_signature_vector() -> None:
 
 
 def build_rotated_key_still_verifies_vector() -> None:
-    # Two independently-keyed packets (each generate_demo_packet.build_packet()
-    # call mints its own fresh Ed25519 key) both verify on their own terms --
-    # the property this demonstrates is that verify.py's trust root is the
+    # Two independently-keyed packets (two distinct fixed test keys, see
+    # _fixed_ed25519_key) both verify on their own terms -- the property
+    # this demonstrates is that verify.py's trust root is the
     # *manifest's own* receipt_public_key_hex, not a single hardcoded key, so
     # rotating the operator's signing key never invalidates packets issued
     # under the old key: each packet keeps carrying (and gets checked
@@ -172,8 +218,12 @@ def build_rotated_key_still_verifies_vector() -> None:
     directory = VECTORS_DIR / "rotated_key_still_verifies"
     directory.mkdir(parents=True, exist_ok=True)
 
-    manifest_old, receipt_old, events_old, acq_old, cust_old, auth_old = build_packet(anchored=False)
-    manifest_new, receipt_new, events_new, acq_new, cust_new, auth_new = build_packet(anchored=True)
+    manifest_old, receipt_old, events_old, acq_old, cust_old, auth_old = build_packet(
+        anchored=False, signing_key=_fixed_ed25519_key("rotated_key_still_verifies:before")
+    )
+    manifest_new, receipt_new, events_new, acq_new, cust_new, auth_new = build_packet(
+        anchored=True, signing_key=_fixed_ed25519_key("rotated_key_still_verifies:after")
+    )
     assert manifest_old["receipt_public_key_hex"] != manifest_new["receipt_public_key_hex"], (
         "expected two independently generated packets to carry different signing keys"
     )
@@ -213,7 +263,9 @@ def build_verifier_digest_valid_vector() -> None:
     REAL verify.py this conformance suite's subprocess actually runs."""
     from verify import verifier_body_sha256
 
-    manifest, receipt, events, acquisition, custody, authentication = build_packet(anchored=True)
+    manifest, receipt, events, acquisition, custody, authentication = build_packet(
+        anchored=True, signing_key=_fixed_ed25519_key("verifier_digest_valid")
+    )
     manifest = dict(manifest, verifier_sha256=verifier_body_sha256((REPO_ROOT / "verify.py").read_bytes()))
     directory = VECTORS_DIR / "verifier_digest_valid"
     _write_packet(directory, manifest, receipt, events, acquisition, custody, authentication)
@@ -227,7 +279,9 @@ def build_verifier_digest_valid_vector() -> None:
 
 
 def build_verifier_digest_tampered_vector() -> None:
-    manifest, receipt, events, acquisition, custody, authentication = build_packet(anchored=True)
+    manifest, receipt, events, acquisition, custody, authentication = build_packet(
+        anchored=True, signing_key=_fixed_ed25519_key("verifier_digest_tampered")
+    )
     # Well-formed 64-char hex, deliberately wrong -- distinct from
     # VERIFIER_DIGEST_MALFORMED (a not-hex-shaped value), which this
     # vector set deliberately does NOT also cover: MALFORMED is a
@@ -309,9 +363,7 @@ def build_receipt_checkpoint_signature_verified_vector() -> None:
     independently of the checkpoint wins outright -- SIGNATURE_VERIFIED,
     the strongest verdict, reported even though --checkpoint was also
     supplied and would independently pass on its own."""
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
-    private_key = Ed25519PrivateKey.generate()
+    private_key = _fixed_ed25519_key("receipt_checkpoint:signature_verified")
     public_key_hex = private_key.public_key().public_bytes_raw().hex()
     receipt = _sign_receipt_fields(private_key, _unsigned_checkpoint_receipt())
     document = {
@@ -338,12 +390,10 @@ def build_receipt_checkpoint_key_unknown_vector() -> None:
     ledger_entry_hash and the supplied --checkpoint hash -- PASSes on
     hash-linkage alone, reported as the distinct CHAIN_VERIFIED_KEY_UNKNOWN
     verdict, never as SIGNATURE_VERIFIED."""
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
-    signing_key = Ed25519PrivateKey.generate()
+    signing_key = _fixed_ed25519_key("receipt_checkpoint:key_unknown:signing")
     receipt = _sign_receipt_fields(signing_key, _unsigned_checkpoint_receipt())
 
-    unrelated_key = Ed25519PrivateKey.generate()
+    unrelated_key = _fixed_ed25519_key("receipt_checkpoint:key_unknown:unrelated")
     unrelated_public_key_hex = unrelated_key.public_key().public_bytes_raw().hex()
     document = {
         "receipt": receipt,
@@ -368,12 +418,10 @@ def build_receipt_checkpoint_tampered_vector() -> None:
     the legacy chain check and checkpoint mode -- neither PASS verdict
     is reachable, the generic FAIL applies, distinct from both PASS
     modes."""
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
-    signing_key = Ed25519PrivateKey.generate()
+    signing_key = _fixed_ed25519_key("receipt_checkpoint:tampered:signing")
     receipt = _sign_receipt_fields(signing_key, _unsigned_checkpoint_receipt())
 
-    unrelated_key = Ed25519PrivateKey.generate()
+    unrelated_key = _fixed_ed25519_key("receipt_checkpoint:tampered:unrelated")
     unrelated_public_key_hex = unrelated_key.public_key().public_bytes_raw().hex()
     tampered_chain = _checkpoint_chain(receipt)
     tampered_chain[1]["previous_event_hash"] = "not-e1"
