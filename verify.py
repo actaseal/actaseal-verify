@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Offline verifier for an ActaSeal dispute evidence packet.
+"""Offline verifier for an ActaSeal dispute evidence packet or an AS 1215
+archive inspection pack.
 
 Standalone by design: no actaseal imports, so a counterparty can re-check
 the evidence without installing or trusting ActaSeal code. Requires only
@@ -41,13 +42,26 @@ band against the gateway operator's published key -- a packet re-signed
 end to end with a different key is internally consistent.
 
 Usage: python verify.py [packet_dir] [--anchors PATH]
-  packet_dir defaults to this script's directory. --anchors is optional:
-  when given, also confirms this packet's ledger_root_hash was witnessed
-  by a successful entry in the named anchor log (a jsonl file of
-  transparency-anchor records, see actaseal.ledger_anchor /
-  scripts/publish_anchor.py in the private ActaSeal repo).
+  [--archive-export] [--tsa-ca-cert PATH ...] [--sth-public-key HEX]
+  packet_dir defaults to this script's directory (an already-extracted
+  packet -- unzip first). --anchors is optional: when given, also
+  confirms this packet's ledger_root_hash was witnessed by a successful
+  entry in the named anchor log (a jsonl file of transparency-anchor
+  records, see actaseal.ledger_anchor / scripts/publish_anchor.py in the
+  private ActaSeal repo).
+
+  Which mode runs is detected automatically from packet_dir's own
+  manifest.json (its schema_version names which artifact type it is) --
+  an inspector never needs to know or pass --archive-export. That flag
+  still exists for an explicit call (e.g. a script that wants to fail
+  loudly if the directory turns out not to be an archive export, rather
+  than silently falling back to the dispute-packet checks). When given,
+  --tsa-ca-cert/--sth-public-key apply only in archive-export mode, to
+  additionally verify the embedded RFC 3161 token / SCITT receipt
+  against a supplied trust root; both are optional even there.
 Exit codes: 0 verified, 1 verification failed or packet unreadable,
-2 unable to run (missing 'cryptography').
+2 unable to run (missing 'cryptography'). Both modes use the same three
+codes.
 """
 import hashlib
 import json
@@ -85,12 +99,13 @@ STH_SIGNATURE_INVALID = "STH_SIGNATURE_INVALID"
 
 # ATTESTATION-LIVE Task 4: RFC 3161 token + SCITT (RFC 9943) receipt
 # verification, additive to this file's existing dispute-packet checks
-# above -- neither of these two functions is wired into main()'s
-# dispute-packet flow (a different artifact type: an AS 1215 archive
-# inspection pack, not a money-action dispute packet), so no existing
-# conformance vector's behavior changes. Both are plain, importable
-# functions a caller (or a future archive-inspection-pack CLI mode)
-# invokes directly.
+# above -- used by verify_archive_export below for a different artifact
+# type (an AS 1215 archive inspection pack, not a money-action dispute
+# packet). main() now auto-detects which of the two a given packet_dir
+# is from its own manifest.json, so this is wired into the CLI; no
+# existing conformance vector's behavior changes since detection only
+# ever routes an inspection-pack manifest to this path, never a
+# dispute-packet one.
 TSA_TOKEN_HASH_MISMATCH = "TSA_TOKEN_HASH_MISMATCH"
 TSA_TOKEN_INVALID = "TSA_TOKEN_INVALID"
 TSA_TOKEN_NO_TRUSTED_ROOT = "TSA_TOKEN_NO_TRUSTED_ROOT"
@@ -1119,6 +1134,21 @@ ARCHIVE_EXPORT_MALFORMED_EVENT = "ARCHIVE_EXPORT_MALFORMED_EVENT"
 ARCHIVE_EXPORT_WORKPAPER_SET_TAMPERED = "ARCHIVE_EXPORT_WORKPAPER_SET_TAMPERED"
 
 
+def detect_archive_export(base):
+    """True if `base`'s own manifest.json declares itself an AS 1215
+    archive-inspection-pack export rather than a dispute packet -- lets
+    main() pick the right verification path without the caller having to
+    know or pass --archive-export. Never raises: a missing or malformed
+    manifest.json just returns False, so the caller falls through to the
+    existing dispute-packet path (and its own, already-correct,
+    UNREADABLE_PACKET/schema-mismatch handling) exactly as before."""
+    try:
+        manifest = json.loads((Path(base) / "manifest.json").read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    return isinstance(manifest, dict) and manifest.get("schema_version") == ARCHIVE_EXPORT_SCHEMA_VERSION
+
+
 def load_archive_export(base):
     """`base` is a directory holding the four files an inspection pack
     zip contains once extracted (manifest.json, workpaper_index.json,
@@ -1316,6 +1346,12 @@ def main(argv):
             positional.append(arg)
 
     base = Path(positional[0]) if positional else Path(__file__).resolve().parent
+
+    # Auto-detected from the packet's own manifest.json unless the caller
+    # already forced the mode with --archive-export -- an inspector who
+    # never heard of that flag still gets the right checks.
+    if not archive_export_mode and detect_archive_export(base):
+        archive_export_mode = True
 
     if archive_export_mode:
         # A different artifact type (an AS 1215 archive engagement
