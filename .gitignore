@@ -8,3 +8,4 @@ venv/
 .pytest_cache/
 dist/
 tamper_demo/node_modules/
+.cache/

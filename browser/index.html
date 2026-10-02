@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verify a packet in your browser — actaseal-verify</title>
+<meta name="description" content="Run actaseal-verify's verify.py on your own packet in the browser. The packet never leaves your machine.">
+<link rel="stylesheet" href="../css/base.css">
+<style>
+  .form { display: grid; gap: 16px; margin: 24px 0; }
+  .form label { display: grid; gap: 6px; font-weight: 600; }
+  .form small { font-weight: 400; color: var(--text-dim); }
+  .form input[type=text] { font: 14px var(--mono); padding: 8px 10px; border: 1px solid var(--border);
+    border-radius: var(--radius); background: var(--bg-raised); color: var(--text); width: 100%; box-sizing: border-box; }
+  .form input[type=file] { font: inherit; font-weight: 400; color: var(--text-dim); max-width: 100%; }
+  #run { justify-self: start; background: var(--accent); color: #fff; border: 0; border-radius: var(--radius);
+    padding: 10px 22px; font: 600 16px var(--sans); cursor: pointer; }
+  #run:disabled { opacity: .45; cursor: not-allowed; }
+  #engine { color: var(--text-dim); font-size: 14px; }
+  #engine[data-state=error] { color: var(--danger); }
+  .result { border-radius: var(--radius); padding: 16px; margin: 24px 0; border: 1px solid var(--border); background: var(--bg-raised); }
+  .result.ok #verdict { color: var(--success-on-dim); }
+  .result.bad #verdict { color: var(--danger-on-dim); }
+  #verdict { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
+  .result pre { white-space: pre-wrap; word-break: break-word; font: 13px/1.5 var(--mono); margin: 8px 0 0; }
+  .mono { font-family: var(--mono); font-size: 13px; word-break: break-all; }
+</style>
+</head>
+<body>
+<main class="page">
+  <span class="tagline"><a href="../">actaseal-verify</a></span>
+  <h1>Verify a packet in your browser.</h1>
+  <p class="lede">
+    This page runs this site's own <a href="../verify.py"><code>verify.py</code></a>, unmodified,
+    inside your browser (Python compiled to WebAssembly). Same checks, same failure codes,
+    same exit code as running it yourself. The packet is read on your machine and is not uploaded.
+  </p>
+
+  <p id="engine">Loading the verifier (about 16&nbsp;MB, cached after the first visit)…</p>
+
+  <div class="form">
+    <label>Packet (.zip)
+      <input type="file" id="packet" accept=".zip,application/zip">
+    </label>
+    <label>STH public key <small>optional · hex. Get it from the issuer out of band, never from the packet itself.</small>
+      <input type="text" id="sthkey" spellcheck="false" autocomplete="off" placeholder="e.g. 2faa89bacd72…">
+    </label>
+    <label>TSA CA certificate(s) <small>optional · PEM, to check the RFC 3161 timestamp's chain (e.g. the TSA's published CA cert)</small>
+      <input type="file" id="tsa" multiple accept=".pem,.crt,.cer">
+    </label>
+    <label>Anchors file <small>optional · JSONL, for the ledger-head anchor check</small>
+      <input type="file" id="anchors" accept=".jsonl,.json,.txt">
+    </label>
+    <button id="run" disabled>Verify</button>
+  </div>
+
+  <div id="result" class="result" hidden>
+    <p id="verdict"></p>
+    <div>Equivalent command: <code id="cmd"></code></div>
+    <pre id="output"></pre>
+  </div>
+
+  <div class="note">
+    <strong>What you are trusting.</strong> The code that ran is <code>verify.py</code> with SHA-256
+    <span class="mono" id="sha">(loading)</span>. Compare it with <code>sha256sum verify.py</code> from
+    the <a href="https://github.com/actaseal/actaseal-verify">repository</a>, or skip this page and run
+    the CLI yourself. Checks the packet cannot self-certify (the STH key, the TSA chain) stay
+    unchecked unless you supply those inputs, and the output says so by name.
+  </div>
+
+  <footer>
+    actaseal-verify — Apache-2.0. The Python runtime is <a href="https://pyodide.org">Pyodide</a>
+    314.0.7 with <code>cryptography</code>, served from this site with pinned hashes
+    (<code>scripts/fetch_browser_runtime.py</code>).
+  </footer>
+</main>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

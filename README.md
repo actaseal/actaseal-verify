@@ -43,6 +43,17 @@ break the hash chain or the signature and watch it turn red immediately. Nothing
 anywhere; it's a JS port of the same checks (`tamper_demo/verify_min.js`), using the
 browser's native WebCrypto Ed25519 support.
 
+To check your **own** packet without installing anything, open
+**[browser/](browser/index.html)**: it runs this repo's `verify.py`,
+unmodified, in the browser via [Pyodide](https://pyodide.org) (Python
+compiled to WebAssembly), with the same flags (`--sth-public-key`,
+`--tsa-ca-cert`, `--anchors`), output and exit code as the CLI. The packet
+is read locally and not uploaded. The page shows the SHA-256 of the
+`verify.py` it ran so you can compare it with your own copy. The runtime
+(Pyodide 314.0.7 plus `cryptography`, ~16 MB) is served from this site and
+reproduced byte for byte by `scripts/fetch_browser_runtime.py`, which checks
+every file against a pinned hash.
+
 ## Use it in CI
 
 `action.yml` in this repository is a reusable GitHub Action:
