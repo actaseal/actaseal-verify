@@ -1,13 +1,12 @@
-"""T8 (ONESHOT-4 batch 3, mirrored from the private repo): verify.py's
+"""verify.py's
 optional continuity-checkpoint check -- checkpoint.json (a signed tree
 head) + inclusion_proof.json, proving a receipt is anchored under an
 independently-signed, published checkpoint. Silent no-op when absent
 (same posture as --anchors); additive to a plain dispute packet.
 
 Builds its own tiny Merkle tree here with only stdlib + 'cryptography',
-same "no actaseal import" posture as generate_demo_packet.py -- this
-test module has no access to actaseal.anchoring, so the RFC 6962 leaf/
-node hashing is reproduced inline rather than imported.
+same "no actaseal import" posture as generate_demo_packet.py, so the
+RFC 6962 leaf/node hashing is reproduced inline rather than imported.
 """
 from __future__ import annotations
 

@@ -20,21 +20,13 @@ offline verifier for ActaSeal dispute evidence packets. See
 - **Never fabricate a check.** If a field is underivable or a claim
   can't be verified, `verify.py` reports the gap explicitly (a named
   failure code) -- it never invents a passing result.
-- **This file is the byte-pinned source of truth** for the private
-  `actaseal-product` repo's `actaseal/dispute/offline_verifier.py`
-  (see that repo's `VERIFIER_SYNC.md`). A change here that fixes a
-  real bug should be synced there via that repo's
-  `scripts/sync_public_verifier.py` -- do not assume this repo's
-  changes propagate automatically.
-  - As of commit `d58a322` ("Dual-version ledger_root_hash support
-    (v1/v2), RCA1 two-repo release"), this file declares
-    `VERIFIER_SUPPORTS_ROOT_VERSIONS = ("v1", "v2")` and independently
-    verifies `ledger_root_version` (missing means v1, unrecognized
-    fails loudly). The private repo's `actaseal/dispute/verifier_gate.py`
-    reads this exact marker to decide whether it may emit a v2
-    `ledger_root_hash` into a third-party-verified artifact at all --
-    keep the marker name and the `("v1", "v2")` tuple's meaning in
-    sync with that gate if either side changes.
+- **`verify.py` is byte-pinned.** Packets embed a hash of its body
+  (`verifier_sha256`), and the packet producer ships an identical copy.
+  Any edit to `verify.py`, comments included, changes that hash: do not
+  change it without coordinating a verifier release with the
+  maintainers. `VERIFIER_SUPPORTS_ROOT_VERSIONS = ("v1", "v2")` is read
+  by the producer to decide which `ledger_root_hash` versions it may
+  emit -- keep the marker name and the tuple's meaning stable.
 
 ## Before committing
 

@@ -1,11 +1,10 @@
-"""T5 port: keyless/hash-linked verification mode
+"""Keyless/hash-linked verification mode
 (verify_receipt.py --checkpoint). A receipt can PASS on hash-linkage
 alone, via an out-of-band trusted checkpoint hash, even when the signing
 key is unknown or rotated -- reported as CHAIN_VERIFIED_KEY_UNKNOWN,
 never conflated with a real SIGNATURE_VERIFIED PASS, and never conflated
-with a generic FAIL either. Ported unchanged from the private repo's
-actaseal/dispute/verify_receipt.py (a standalone, non-actaseal-importing
-sibling of offline_verifier.py, not subject to that file's byte-pin).
+with a generic FAIL either. verify_receipt.py is a standalone sibling
+of verify.py, not subject to verify.py's byte-pin.
 """
 from __future__ import annotations
 

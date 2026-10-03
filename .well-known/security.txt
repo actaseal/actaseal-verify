@@ -4,7 +4,6 @@ Preferred-Languages: en
 Canonical: https://verify.actaseal.com/.well-known/security.txt
 Policy: https://github.com/actaseal/actaseal-verify/blob/main/SECURITY.md
 
-# Note: security@actaseal.com is the contact published in SECURITY.md.
-# If that alias is not yet live when you read this, open a private
-# GitHub security advisory against this repository instead:
+# You can also open a private GitHub security advisory against this
+# repository:
 # https://github.com/actaseal/actaseal-verify/security/advisories/new

@@ -19,8 +19,8 @@ the root of this repo).
   a freshly built valid packet and mutate exactly one field with a
   plain JSON/string edit -- never by calling into signing code.
 - `vectors.sha256` -- a content pin over every file under `vectors/`,
-  the same idea as `../offline_verifier.sha256` pinning the synced
-  verifier. `test_conformance.py::test_vectors_pin_file_matches_committed_vectors`
+  the same idea as the `verifier_sha256` pin inside every packet.
+  `test_conformance.py::test_vectors_pin_file_matches_committed_vectors`
   fails if a vector was hand-edited without being regenerated and
   re-pinned through `generate_vectors.py`.
 - `test_conformance.py` -- a pytest runner that feeds each vector
@@ -74,9 +74,7 @@ python conformance/generate_vectors.py
 ```
 
 Review the diff under `vectors/`, then commit `vectors/` and
-`vectors.sha256` together -- same workflow as
-`../scripts/sync_public_verifier.py` re-pinning `offline_verifier.sha256`
-in the private repo. Because `generate_demo_packet.build_packet()` mints
+`vectors.sha256` together. Because `generate_demo_packet.build_packet()` mints
 a fresh Ed25519 key on every run, regenerating always changes the exact
 bytes of `valid/`, `tampered_payload/`, `tampered_chain/`,
 `wrong_signature/`, and both `rotated_key_still_verifies/` sub-packets
@@ -95,7 +93,7 @@ artifact type -- an AS 1215 archive engagement's attestation, not a
 money-action dispute packet: `verify_rfc3161_token` (a real,
 pre-captured freetsa.org RFC 3161 TimeStampToken, pass/hash-mismatch/
 no-trusted-root) and `verify_scitt_receipt` (a real SCITT/RFC 9943
-Receipt from the private repo's `actaseal.archive.transparency_service`,
+Receipt from ActaSeal's transparency service,
 pass/tampered-leaf). `freetsa_root_ca.pem` and `unrelated_root_ca.pem`
 ship alongside so the vectors are self-contained. Covered by
 `test_archive_attestation_conformance.py`, not `test_conformance.py`

@@ -1,6 +1,5 @@
-"""ONESHOT-MONEY T2 (ActaSeal private repo): the public verifier must
-accept hybrid Ed25519+ML-DSA-65 receipts, or the private repo's
-crypto-agility/longevity claim is hollow. Calls verify.py's
+"""The public verifier must accept hybrid Ed25519+ML-DSA-65 receipts,
+or the crypto-agility/longevity claim is hollow. Calls verify.py's
 verify_receipt() directly (no full packet needed) against constructed
 manifest/receipt dicts.
 """

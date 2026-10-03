@@ -14,8 +14,8 @@ third-party implementer's own verifier should also reject.
 
 Run: python conformance/generate_vectors.py
 Then review the diff under conformance/vectors/ before committing --
-vectors.sha256 is a content pin (like ../offline_verifier.sha256 pins
-the synced verifier): it catches hand-edited vector files that were
+vectors.sha256 is a content pin (like the verifier_sha256 pin inside
+every packet): it catches hand-edited vector files that were
 never regenerated through this script.
 
 Deterministic: every signing key this script uses is a fixed,
@@ -38,9 +38,7 @@ One known, real exception, checked rather than assumed: none. This
 corpus contains no PQ/ML-DSA signing at all (grepped: neither
 generate_demo_packet.py nor this file import liboqs/oqs or reference
 ML-DSA) and no ECDSA either (Ed25519 only, throughout) -- so there is no
-hedged-signature caveat to document here, unlike the private repo's own
-generate_vectors.py, which does sign some vectors with ML-DSA and must
-document that exception.
+hedged-signature caveat to document here.
 """
 from __future__ import annotations
 
@@ -254,7 +252,7 @@ def build_rotated_key_still_verifies_vector() -> None:
 
 
 def build_verifier_digest_valid_vector() -> None:
-    """TASK 1 (private repo)/TASK 2 (this carry-over): manifest.json's
+    """manifest.json's
     "verifier_sha256" pin, registered as a real conformance vector --
     the previous pass added the field and the self-check in verify.py
     but never a vector proving a correctly-pinned packet verifies. The
@@ -285,8 +283,8 @@ def build_verifier_digest_tampered_vector() -> None:
     # Well-formed 64-char hex, deliberately wrong -- distinct from
     # VERIFIER_DIGEST_MALFORMED (a not-hex-shaped value), which this
     # vector set deliberately does NOT also cover: MALFORMED is a
-    # format check exercised directly in the private repo's own
-    # test_verifier_digest_pin_v1.py, not duplicated here.
+    # format check covered by the producer's own tests, not duplicated
+    # here.
     manifest = dict(manifest, verifier_sha256="0" * 64)
     directory = VECTORS_DIR / "verifier_digest_tampered"
     _write_packet(directory, manifest, receipt, events, acquisition, custody, authentication)
