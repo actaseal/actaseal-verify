@@ -23,6 +23,8 @@
   .result.bad #verdict { color: var(--danger-on-dim); }
   #verdict { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
   .result pre { white-space: pre-wrap; word-break: break-word; font: 13px/1.5 var(--mono); margin: 8px 0 0; }
+  .demo-row { margin: -8px 0 0; color: var(--text-dim); font-size: 14px; }
+  .demo-row button { font-size: 14px; padding: 4px 12px; margin-left: 6px; }
   .mono { font-family: var(--mono); font-size: 13px; word-break: break-all; }
 </style>
 </head>
@@ -42,6 +44,8 @@
     <label>Packet (.zip)
       <input type="file" id="packet" accept=".zip,application/zip">
     </label>
+    <p class="demo-row">No packet at hand?
+      <button type="button" class="secondary" id="demo" disabled>Try the demo packet</button></p>
     <label>STH public key <small>optional · hex. Get it from the issuer out of band, never from the packet itself.</small>
       <input type="text" id="sthkey" spellcheck="false" autocomplete="off" placeholder="e.g. 2faa89bacd72…">
     </label>

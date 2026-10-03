@@ -35,9 +35,10 @@ async function boot() {
 
 function sync() {
   $("run").disabled = !(py && $("packet").files.length);
+  $("demo").disabled = !py;
 }
 
-async function run() {
+async function run(demoBytes = null) {
   const work = "/work";
   try { py.FS.rmdir(work); } catch { /* first run */ }
   py.FS.mkdirTree(work);
@@ -46,7 +47,8 @@ async function run() {
     py.FS.writeFile(path, new Uint8Array(await file.arrayBuffer()));
     return path;
   };
-  const packet = await write($("packet").files[0], "packet.zip");
+  const packet = `${work}/packet.zip`;
+  py.FS.writeFile(packet, demoBytes ?? new Uint8Array(await $("packet").files[0].arrayBuffer()));
   const certs = [];
   for (const [i, f] of [...$("tsa").files].entries()) certs.push(await write(f, `tsa-ca-${i}.pem`));
   const anchors = $("anchors").files[0] ? await write($("anchors").files[0], "anchors.jsonl") : null;
@@ -73,6 +75,16 @@ function show(code, output, args) {
 }
 
 for (const id of ["packet", "tsa", "anchors"]) $(id).addEventListener("change", sync);
+$("demo").addEventListener("click", async () => {
+  try {
+    const bytes = new Uint8Array(await (await fetch("../demo/demo-packet-anchored.zip")).arrayBuffer());
+    await run(bytes);
+    $("cmd").textContent = $("cmd").textContent.replace("packet.zip", "demo-packet-anchored.zip");
+  } catch (e) {
+    show(2, `Browser error: ${e.message}`, []);
+    console.error(e);
+  }
+});
 $("run").addEventListener("click", () => run().catch((e) => {
   show(2, `Browser error: ${e.message}`, []);
   console.error(e);

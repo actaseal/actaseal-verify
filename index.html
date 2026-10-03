@@ -1,4 +1,4 @@
-<title>Verify this packet yourself — actaseal-verify</title>
+<title>Verify an ActaSeal packet — actaseal-verify</title>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Verify an ActaSeal dispute evidence packet offline, in under 60 seconds, without installing ActaSeal or trusting our servers.">
@@ -6,16 +6,16 @@
 
 <main class="page">
   <span class="tagline">actaseal-verify</span>
-  <h1>Verify this packet yourself.</h1>
+  <h1>Verify an ActaSeal packet yourself.</h1>
   <p class="lede">
-    ActaSeal is a policy gateway that sits in front of AI-agent payment
-    actions and produces a signed, tamper-evident evidence record for
-    every decision. When a dispute happens, that record can be exported
-    as a self-contained packet. This page walks through checking one
-    yourself — no ActaSeal install, no account, no call to us.
+    Every ActaSeal decision is exported as a signed, tamper-evident
+    evidence packet. Check one here, independently: no ActaSeal install,
+    no account, no call to us.
   </p>
+  <p><a class="cta" href="browser/">Verify a packet in your browser &rarr;</a></p>
+  <p class="cta-note">Runs the same <code>verify.py</code> as below, inside your browser. The packet is not uploaded.</p>
 
-  <h2>Verify a real packet in under 60 seconds</h2>
+  <h2>Or run it from the command line</h2>
   <div class="step">
     <span class="step-num">1</span>
     <div class="step-body">
@@ -131,16 +131,11 @@ python verify.py packet</code></pre>
   <h2>Read more</h2>
   <div class="links">
     <a href="SPEC.md">Packet format spec</a>
-    <a href="README.md">Full README</a>
-    <a href="browser/">Verify your own packet in the browser</a>
-    <a href="https://actaseal-verify.pages.dev">Verify a receipt in your browser</a>
-    <a href="verify.py">verify.py source</a>
-    <a href="SECURITY.md">Report a verifier bug</a>
-    <a href="comparison.html">vs. alternatives</a>
-    <a href="graveyard.html">Notarization graveyard</a>
-    <a href="pricing.html">Pricing</a>
     <a href="spec_freeze.html">Spec-freeze guarantee</a>
-    <a href="CONTRIBUTING.md">Contributing</a>
+    <a href="verify.py">verify.py source</a>
+    <a href="README.md">README</a>
+    <a href="SECURITY.md">Report a verifier bug</a>
+    <a href="https://actaseal.com">ActaSeal</a>
   </div>
 
   <footer>

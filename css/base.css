@@ -283,3 +283,9 @@ button.secondary { background: transparent; border: 1px solid var(--border); col
   line-height: 1.6;
   margin-bottom: 1.5em;
 }
+
+/* Primary call to action on the verifier landing page. */
+a.cta { display: inline-block; background: var(--accent); color: #fff; text-decoration: none;
+  font-weight: 600; padding: 0.7rem 1.4rem; border-radius: var(--radius); margin-top: 0.5rem; }
+a.cta:hover { filter: brightness(1.08); }
+.cta-note { color: var(--text-dim); font-size: 0.9rem; margin-top: 0.25rem; }
