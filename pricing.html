@@ -45,10 +45,10 @@ verifiable whether or not you are still a customer.
 </tr>
 <tr>
   <td class="tier-name">Enterprise</td>
-  <td>Multiple tenants, or an environment with its own key custody and
-  network constraints.</td>
-  <td>Everything in Firm, unlimited archived engagements. Multi-tenant
-  deployment. Air-gapped installation. AWS KMS or HashiCorp Vault
+  <td>An environment with its own key custody and network
+  constraints.</td>
+  <td>Everything in Firm, unlimited archived engagements. Air-gapped
+  installation. AWS KMS or HashiCorp Vault
   Transit key custody, so the signing key never leaves your KMS or
   Vault. Post-quantum receipt signing (ML-DSA-65, FIPS&nbsp;204) or
   hybrid Ed25519&nbsp;+&nbsp;ML-DSA-65 signing. Dedicated onboarding and
@@ -111,11 +111,6 @@ by name, we do not meet it today and will say so in writing.</p>
 <p><strong>No hosted service.</strong> Every tier is deployed inside
 your own infrastructure. There is no multi-customer service holding your
 evidence, which also means there is no hosted uptime commitment to buy.</p>
-
-<p><strong>Multi-tenant isolation is enforced by default-deny scope
-checks in code and has not yet been reviewed by an independent
-tester.</strong> If that review is a condition of your deployment, say
-so and it goes in the contract.</p>
 
 </div>
 
