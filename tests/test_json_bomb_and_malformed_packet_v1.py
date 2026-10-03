@@ -1,5 +1,4 @@
-"""Attack-surface suite (companion to the private repo's
-tests/test_packet_zip_attack_surface_v1.py): verify.py's own JSON
+"""Attack-surface suite: verify.py's own JSON
 parsing must fail closed (UNREADABLE_PACKET / non-zero exit) against a
 malformed or hostile packet directory, never crash uncaught or hang.
 

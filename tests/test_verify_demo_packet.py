@@ -71,8 +71,7 @@ def test_broken_chain_fails_verification(tmp_path):
 
 
 def test_foreign_action_scope_evaluated_event_does_not_leak_into_verdict(tmp_path):
-    """Regression for a live bug (fixed in actaseal's private repo,
-    ported here 2026-07-16): a dispute packet's ledger_slice.ndjson is
+    """Regression for a live bug (fixed 2026-07-16): a dispute packet's ledger_slice.ndjson is
     documented to be the CONTIGUOUS span between an action's first and
     last event -- by design it can include a DIFFERENT action's events
     interleaved in between (e.g. this action getting a second event
@@ -130,8 +129,7 @@ def test_foreign_action_scope_evaluated_event_does_not_leak_into_verdict(tmp_pat
 
 
 def test_tsa_anchored_receipt_still_passes_signature_check(tmp_path):
-    """Mirrors a bug fixed in actaseal's private repo (T1, tsa_anchor
-    stapling): tsa_anchor is added onto a receipt AFTER signing, so it
+    """Regression (tsa_anchor stapling): tsa_anchor is added onto a receipt AFTER signing, so it
     must never be part of what gets hashed to check the signature.
     verify_receipt here only popped "signature" before hashing, not
     "tsa_anchor" -- hashing a superset of what was actually signed and
@@ -212,7 +210,7 @@ def test_no_anchors_flag_skips_the_check_silently(tmp_path):
     assert "ANCHOR" not in result.stdout
 
 
-# --- RCA1 (ledger-root v1->v2 migration): dual-version support (A5) ---
+# --- ledger-root v1->v2 migration: dual-version support ---
 
 def _set_ledger_root_version(packet_dir: Path, version) -> None:
     acquisition_path = packet_dir / "acquisition.json"

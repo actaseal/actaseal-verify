@@ -23,8 +23,7 @@ Email: security@actaseal.com with a description and, if possible, a minimal
 packet reproducing the issue. We aim to acknowledge within 3 business
 days.
 
-(If security@actaseal.com is not yet live when you try it -- this alias
-was set up ahead of the mailbox being provisioned -- open a private
+(You can also open a private
 [GitHub security advisory](https://github.com/actaseal/actaseal-verify/security/advisories/new)
 against this repo instead; also see `.well-known/security.txt`.)
 

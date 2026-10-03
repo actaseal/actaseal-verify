@@ -49,9 +49,7 @@ for count-only telemetry without touching `verify.py` itself.
 
 ## Related
 
-The private ActaSeal product repository (`actaseal/actaseal-product`,
-not public) is the policy gateway that PRODUCES the packets this
-verifier checks -- this repository is the independent, standalone
-verification counterpart, deliberately maintained separately so a
-verifier's trustworthiness never depends on the producer's own
-continued cooperation.
+ActaSeal's product PRODUCES the packets this verifier checks; this
+repository is the independent, standalone verification counterpart,
+maintained separately so a verifier's trustworthiness never depends on
+the producer's own continued cooperation.
