@@ -25,7 +25,10 @@
       }
     ],
     "disposition": "REFUSED_BY_POLICY",
+    "exit_code": 0,
+    "failed_checks": [],
     "integrity_protection": "none",
+    "outcome": "ACCEPTED",
     "schema": "actaseal-verify-result.v1",
     "trust_material_complete": true,
     "verdict": "NOT_EVALUATED"

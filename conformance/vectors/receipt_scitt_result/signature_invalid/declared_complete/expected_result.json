@@ -25,7 +25,12 @@
       }
     ],
     "disposition": "ACCEPTED",
+    "exit_code": 1,
+    "failed_checks": [
+      "signature"
+    ],
     "integrity_protection": "none",
+    "outcome": "REJECTED",
     "schema": "actaseal-verify-result.v1",
     "trust_material_complete": true,
     "verdict": "CRYPTOGRAPHICALLY_INVALID"

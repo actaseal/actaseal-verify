@@ -124,13 +124,37 @@ signing key is rotated or unknown but a trusted ledger checkpoint hash is
 available out of band) and two flags for machine-readable, SCITT-aligned output:
 
 - `--emit-result` additionally prints one line of JSON, schema
-  `actaseal-verify-result.v1`, with a `verdict`
-  (`CRYPTOGRAPHICALLY_VALID` / `CRYPTOGRAPHICALLY_INVALID` / `NOT_EVALUATED`)
-  describing *only* the cryptographic outcome, a `disposition`
-  (`ACCEPTED` / `REFUSED_BY_POLICY`) describing what a relying party should do
-  about it, `trust_material_complete` (see below), `integrity_protection`
-  (always `"none"` -- see below), and a structured `checks` list. Without this
-  flag, output and exit codes are unchanged from before this flag existed.
+  `actaseal-verify-result.v1`, with eight fields, always present:
+  - `verdict` (`CRYPTOGRAPHICALLY_VALID` / `CRYPTOGRAPHICALLY_INVALID` /
+    `NOT_EVALUATED`) -- describes *only* the cryptographic outcome.
+  - `disposition` (`ACCEPTED` / `REFUSED_BY_POLICY`) -- what a relying party
+    should do about the trust-material situation (see below); never a crypto
+    outcome.
+  - `outcome` (`ACCEPTED` / `REJECTED`) -- the exit code's meaning, spelled
+    out: `ACCEPTED` iff `exit_code` is `0`, `REJECTED` otherwise. No third
+    value.
+  - `exit_code` -- the actual integer this process is about to return (`0`
+    PASS, `1` FAIL, `2` malformed input / can't run).
+  - `failed_checks` -- an array of check identifiers
+    (`signature`/`checkpoint`/`legacy_chain`/`validation_material`) with
+    status `"failed"`; `["malformed_input"]` for an exit-2 branch where no
+    check ever ran; `["archive_attestation"]` for a failed archive-attestation
+    document; `[]` when nothing failed.
+  - `trust_material_complete` (see below).
+  - `integrity_protection` (always `"none"` -- see below).
+  - `checks` -- the structured, per-check detail behind `failed_checks`.
+  Without this flag, output and exit codes are unchanged from before this
+  flag existed.
+
+  **Read the full result, not `verdict` alone.** `verdict` is the pure
+  cryptographic fact and nothing else: a receipt with a genuinely valid
+  signature but a separately broken `ledger_slice` reports `verdict:
+  CRYPTOGRAPHICALLY_VALID` -- the signature math really did pass -- while
+  `outcome: REJECTED`, `exit_code: 1`, and `failed_checks: ["legacy_chain"]`
+  say, correctly, that this receipt must not be accepted. A consumer that
+  reads `verdict` alone and treats "VALID" as "accept it" gets this one
+  wrong; `outcome`/`exit_code`/`failed_checks` exist specifically so that
+  mistake isn't necessary.
 - `--trust-material-complete` is a relying-party declaration (boolean, **default
   `false`**) that the trust material you supplied -- a `receipt_public_key_hex`,
   or none -- is a *complete* account of the keys you are willing to trust, not
@@ -161,8 +185,9 @@ declares, honestly, that the result travels with no integrity protection of its
 own -- transport and storage integrity for the emitted JSON is your
 responsibility, same as for any other unsigned tool output.
 
-`conformance/vectors/receipt_scitt_result/` pins four input/result pairs covering
-the table above; see `conformance/README.md`.
+`conformance/vectors/receipt_scitt_result/` pins five input/result pairs covering
+the table above, plus the valid-signature-broken-chain case just described; see
+`conformance/README.md`.
 
 ## Telemetry: opt-in, count-only, off by default, NOT in verify.py itself
 

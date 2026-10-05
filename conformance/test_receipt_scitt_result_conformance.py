@@ -131,3 +131,43 @@ def test_schema_and_integrity_protection_always_present():
         assert result["schema"] == "actaseal-verify-result.v1"
         assert result["integrity_protection"] == "none"
         assert isinstance(result["trust_material_complete"], bool)
+
+
+def test_outcome_exit_code_failed_checks_always_present_and_consistent():
+    """outcome/exit_code/failed_checks were added specifically because
+    verdict alone is not safe to read as "should this be accepted" (see
+    valid_signature_broken_chain/). Every vector's pinned result must
+    carry all three, outcome must be the direct, only-two-values mapping
+    from exit_code, and failed_checks must exactly match whichever
+    `checks` entries (if any) have status "failed" -- except the
+    malformed-input/archive-attestation-failure vectors, whose `checks`
+    is always `[]` by design (nothing got far enough to run) but whose
+    failed_checks still names the override identifier."""
+    for vector_dir in _vector_dirs():
+        expected = json.loads((vector_dir / "expected_result.json").read_text(encoding="utf-8"))
+        result = expected["result"]
+        assert "outcome" in result and "exit_code" in result and "failed_checks" in result, _vector_id(vector_dir)
+        assert result["outcome"] in ("ACCEPTED", "REJECTED"), _vector_id(vector_dir)
+        expected_outcome = "ACCEPTED" if result["exit_code"] == 0 else "REJECTED"
+        assert result["outcome"] == expected_outcome, _vector_id(vector_dir)
+        assert isinstance(result["failed_checks"], list), _vector_id(vector_dir)
+        checks_failed = [c["check"] for c in result["checks"] if c["status"] == "failed"]
+        if result["checks"]:
+            assert result["failed_checks"] == checks_failed, _vector_id(vector_dir)
+
+
+def test_worked_example_valid_signature_broken_chain():
+    """The exact case that motivated outcome/exit_code/failed_checks: a
+    verdict of CRYPTOGRAPHICALLY_VALID that is nonetheless REJECTED
+    overall. Asserted directly against the live subprocess, not just
+    the pinned file, so a future regression here is caught immediately."""
+    vector_dir = VECTORS_DIR / "valid_signature_broken_chain"
+    assert vector_dir.exists(), "valid_signature_broken_chain vector is missing"
+    completed = _run(vector_dir)
+    result_line = next(line for line in completed.stdout.splitlines() if line.startswith("{"))
+    result = json.loads(result_line)
+    assert completed.returncode == 1
+    assert result["verdict"] == "CRYPTOGRAPHICALLY_VALID"
+    assert result["outcome"] == "REJECTED"
+    assert result["exit_code"] == 1
+    assert "legacy_chain" in result["failed_checks"]

@@ -585,6 +585,50 @@ def build_scitt_signature_invalid_vector() -> None:
         assert result["verdict"] == "CRYPTOGRAPHICALLY_INVALID" and result["disposition"] == "ACCEPTED", result
 
 
+def build_scitt_valid_signature_broken_chain_vector() -> None:
+    """The case that motivated adding outcome/exit_code/failed_checks to
+    actaseal-verify-result.v1: a GENUINELY valid signature (raw crypto
+    math really does pass) over a receipt whose separately-supplied
+    ledger_slice is tampered (a broken previous_event_hash link, no
+    --checkpoint supplied so the legacy chain check runs). verdict stays
+    CRYPTOGRAPHICALLY_VALID -- the signature check itself really did
+    pass, verdict describes only that -- but outcome is REJECTED,
+    exit_code is 1, and failed_checks names "legacy_chain", so a
+    consumer reading the full result (not verdict alone) never mistakes
+    this for an acceptable receipt. Independent of
+    --trust-material-complete: the signature IS checked and valid, so
+    that flag plays no role in this branch at all (raw_signature_valid
+    takes the first branch in _build_structured_result's decision table
+    regardless of the flag's value) -- generated once, under the
+    default (False), not as a flag-paired pair like (d) above."""
+    signing_key = _fixed_ed25519_key("scitt_result:valid_signature_broken_chain")
+    receipt = _sign_receipt_fields(signing_key, _unsigned_checkpoint_receipt())
+    tampered_chain = _checkpoint_chain(receipt)
+    tampered_chain[1]["previous_event_hash"] = "not-e1"
+    document = {
+        "receipt": receipt,
+        "receipt_public_key_hex": signing_key.public_key().public_bytes_raw().hex(),
+        "ledger_slice": tampered_chain,
+    }
+    directory = SCITT_RESULT_VECTORS_DIR / "valid_signature_broken_chain"
+    result = _write_scitt_result_vector(
+        directory, document,
+        checkpoint=None, trust_material_complete=False,
+        proves="A genuinely valid signature over a receipt whose separately-supplied "
+        "ledger_slice is tampered (broken previous_event_hash): verdict stays "
+        "CRYPTOGRAPHICALLY_VALID (the signature math itself really did pass) but outcome is "
+        "REJECTED, exit_code is 1, and failed_checks names legacy_chain -- this is why a "
+        "consumer must read the full result, not verdict alone, to know whether to accept a "
+        "receipt. Independent of --trust-material-complete (not generated as a flag-paired "
+        "pair): the signature IS checked and valid here, so the completeness declaration plays "
+        "no role in this branch of the decision table at all.",
+    )
+    assert result["verdict"] == "CRYPTOGRAPHICALLY_VALID", result
+    assert result["outcome"] == "REJECTED", result
+    assert result["exit_code"] == 1, result
+    assert "legacy_chain" in result["failed_checks"], result
+
+
 def write_pin() -> None:
     entries = []
     for path in sorted(VECTORS_DIR.rglob("*")):
@@ -640,6 +684,7 @@ def main() -> int:
     build_scitt_declared_complete_refused_vector()
     build_scitt_empty_trust_refused_vector()
     build_scitt_signature_invalid_vector()
+    build_scitt_valid_signature_broken_chain_vector()
     write_pin()
     print(f"Wrote vectors to {VECTORS_DIR}")
     print(f"Pinned {PIN_FILE}")

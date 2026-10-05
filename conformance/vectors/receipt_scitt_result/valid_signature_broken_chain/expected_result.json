@@ -1,0 +1,38 @@
+{
+  "exit_code": 1,
+  "proves": "A genuinely valid signature over a receipt whose separately-supplied ledger_slice is tampered (broken previous_event_hash): verdict stays CRYPTOGRAPHICALLY_VALID (the signature math itself really did pass) but outcome is REJECTED, exit_code is 1, and failed_checks names legacy_chain -- this is why a consumer must read the full result, not verdict alone, to know whether to accept a receipt. Independent of --trust-material-complete (not generated as a flag-paired pair): the signature IS checked and valid here, so the completeness declaration plays no role in this branch of the decision table at all.",
+  "result": {
+    "checks": [
+      {
+        "check": "signature",
+        "detail": null,
+        "status": "passed"
+      },
+      {
+        "check": "checkpoint",
+        "detail": null,
+        "status": "not_attempted"
+      },
+      {
+        "check": "legacy_chain",
+        "detail": "CHAIN_BROKEN: event 1",
+        "status": "failed"
+      },
+      {
+        "check": "validation_material",
+        "detail": "VALIDATION_MATERIAL_MISSING: no embedded validation_material -- this packet cannot be re-verified offline decades from now without external lookups",
+        "status": "warning"
+      }
+    ],
+    "disposition": "ACCEPTED",
+    "exit_code": 1,
+    "failed_checks": [
+      "legacy_chain"
+    ],
+    "integrity_protection": "none",
+    "outcome": "REJECTED",
+    "schema": "actaseal-verify-result.v1",
+    "trust_material_complete": false,
+    "verdict": "CRYPTOGRAPHICALLY_VALID"
+  }
+}

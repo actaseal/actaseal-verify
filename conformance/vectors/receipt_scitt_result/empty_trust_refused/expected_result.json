@@ -4,7 +4,12 @@
   "result": {
     "checks": [],
     "disposition": "REFUSED_BY_POLICY",
+    "exit_code": 2,
+    "failed_checks": [
+      "malformed_input"
+    ],
     "integrity_protection": "none",
+    "outcome": "REJECTED",
     "schema": "actaseal-verify-result.v1",
     "trust_material_complete": true,
     "verdict": "NOT_EVALUATED"

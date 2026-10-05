@@ -438,6 +438,21 @@ VERDICT_NOT_EVALUATED = "NOT_EVALUATED"
 DISPOSITION_ACCEPTED = "ACCEPTED"
 DISPOSITION_REFUSED = "REFUSED_BY_POLICY"
 
+OUTCOME_ACCEPTED = "ACCEPTED"
+OUTCOME_REJECTED = "REJECTED"
+
+# The sole `failed_checks` entry for every exit-2 "could not even attempt
+# verification" branch (missing 'cryptography', unreadable/invalid JSON,
+# missing required fields): none of the four named checks
+# (signature/checkpoint/legacy_chain/validation_material) ever got far
+# enough to run, so `checks` is `[]`, but `failed_checks` must still name
+# SOMETHING on a real rejection rather than silently reading as empty.
+MALFORMED_INPUT_CHECK = "malformed_input"
+# Same idea for the archive_attestation document branch -- a different
+# artifact type with no receipt/signature in it at all, whose own
+# structural check either passed ([]) or failed (this one identifier).
+ARCHIVE_ATTESTATION_CHECK = "archive_attestation"
+
 
 def _check_entry(name, attempted, failures):
     if not attempted:
@@ -455,9 +470,9 @@ def _material_check_entry(warnings, failures):
     return {"check": "validation_material", "status": "passed", "detail": None}
 
 
-def _build_structured_result(*, trust_material_complete, checks,
+def _build_structured_result(*, trust_material_complete, checks, exit_code,
                               raw_signature_valid=False, signature_attempted=False,
-                              raw_checkpoint_valid=False):
+                              raw_checkpoint_valid=False, failed_checks_override=None):
     """Decision table (see this module's docstring for the policy
     rationale). Evaluated in this exact order -- a confirmed failure
     always outranks "never evaluated," and "never evaluated" is reached
@@ -479,11 +494,20 @@ def _build_structured_result(*, trust_material_complete, checks,
     documented divergence: a receipt whose signature math genuinely
     verifies but whose separately-supplied ledger_slice is broken still
     reports CRYPTOGRAPHICALLY_VALID here (the signature check itself
-    really did pass), even though the human-readable output above and
-    this process's exit code both still report FAIL for that same input
-    (that path answers "should this receipt be accepted overall", not
-    "did the signature math check out" -- two different questions this
-    script answers two different ways on purpose)."""
+    really did pass).
+
+    THIS divergence is exactly why `verdict` alone is not safe for a
+    consumer to read as "should this receipt be accepted": that receipt
+    is CRYPTOGRAPHICALLY_VALID yet still REJECTED overall (broken chain).
+    `outcome` (ACCEPTED/REJECTED, mapped directly and only from the real
+    `exit_code` this process is about to return -- 0 is ACCEPTED,
+    anything else is REJECTED, no third value) and `failed_checks` (the
+    `checks` entries with status "failed", or `failed_checks_override`
+    for branches where `checks` itself is empty but something was still
+    rejected) exist so a consumer never has to infer acceptability from
+    `verdict` alone -- `verdict` stays the pure cryptographic fact,
+    `outcome`/`exit_code`/`failed_checks` carry the overall, consumable
+    result."""
     if raw_signature_valid:
         verdict, disposition = VERDICT_VALID, DISPOSITION_ACCEPTED
     elif signature_attempted:
@@ -497,6 +521,11 @@ def _build_structured_result(*, trust_material_complete, checks,
         # than written out twice.
         verdict = VERDICT_NOT_EVALUATED
         disposition = DISPOSITION_REFUSED if trust_material_complete else DISPOSITION_ACCEPTED
+    if failed_checks_override is not None:
+        failed_checks = list(failed_checks_override)
+    else:
+        failed_checks = [c["check"] for c in checks if c["status"] == "failed"]
+    outcome = OUTCOME_ACCEPTED if exit_code == 0 else OUTCOME_REJECTED
     return {
         "schema": RESULT_SCHEMA,
         "verdict": verdict,
@@ -504,6 +533,9 @@ def _build_structured_result(*, trust_material_complete, checks,
         "trust_material_complete": bool(trust_material_complete),
         "integrity_protection": "none",
         "checks": checks,
+        "outcome": outcome,
+        "exit_code": exit_code,
+        "failed_checks": failed_checks,
     }
 
 
@@ -534,7 +566,8 @@ def main(argv):
     except ImportError:
         print("UNABLE_TO_RUN: the 'cryptography' package is required (pip install cryptography)")
         _print_structured_result(emit_result, _build_structured_result(
-            trust_material_complete=trust_material_complete, checks=[],
+            trust_material_complete=trust_material_complete, checks=[], exit_code=2,
+            failed_checks_override=[MALFORMED_INPUT_CHECK],
         ))
         return 2
     crypto = {
@@ -554,7 +587,8 @@ def main(argv):
             print("FAIL")
             print("  MALFORMED_INPUT: --checkpoint requires a value")
             _print_structured_result(emit_result, _build_structured_result(
-                trust_material_complete=trust_material_complete, checks=[],
+                trust_material_complete=trust_material_complete, checks=[], exit_code=2,
+                failed_checks_override=[MALFORMED_INPUT_CHECK],
             ))
             return 2
         args = args[:flag_index] + args[flag_index + 2 :]
@@ -570,7 +604,8 @@ def main(argv):
         print("FAIL")
         print("  MALFORMED_INPUT: unreadable or invalid JSON: %s" % exc)
         _print_structured_result(emit_result, _build_structured_result(
-            trust_material_complete=trust_material_complete, checks=[],
+            trust_material_complete=trust_material_complete, checks=[], exit_code=2,
+            failed_checks_override=[MALFORMED_INPUT_CHECK],
         ))
         return 2
 
@@ -578,7 +613,8 @@ def main(argv):
         print("FAIL")
         print("  MALFORMED_INPUT: top-level JSON must be an object")
         _print_structured_result(emit_result, _build_structured_result(
-            trust_material_complete=trust_material_complete, checks=[],
+            trust_material_complete=trust_material_complete, checks=[], exit_code=2,
+            failed_checks_override=[MALFORMED_INPUT_CHECK],
         ))
         return 2
 
@@ -601,7 +637,7 @@ def main(argv):
                   "Anchor cryptography (TSA/STH) not independently re-verified by this script; "
                   "use actaseal.archive.attestation.verify_archive_attestation for that.")
             _print_structured_result(emit_result, _build_structured_result(
-                trust_material_complete=trust_material_complete, checks=[],
+                trust_material_complete=trust_material_complete, checks=[], exit_code=0,
             ))
             return 0
         print("FAIL")
@@ -609,7 +645,8 @@ def main(argv):
         for failure in attestation_failures:
             print("  " + failure)
         _print_structured_result(emit_result, _build_structured_result(
-            trust_material_complete=trust_material_complete, checks=[],
+            trust_material_complete=trust_material_complete, checks=[], exit_code=1,
+            failed_checks_override=[ARCHIVE_ATTESTATION_CHECK],
         ))
         return 1
 
@@ -619,7 +656,8 @@ def main(argv):
         print("FAIL")
         print("  MALFORMED_INPUT: missing or non-object 'receipt' field")
         _print_structured_result(emit_result, _build_structured_result(
-            trust_material_complete=trust_material_complete, checks=[],
+            trust_material_complete=trust_material_complete, checks=[], exit_code=2,
+            failed_checks_override=[MALFORMED_INPUT_CHECK],
         ))
         return 2
     # T5: receipt_public_key_hex is required UNLESS a --checkpoint was
@@ -629,7 +667,8 @@ def main(argv):
         print("FAIL")
         print("  MALFORMED_INPUT: missing 'receipt_public_key_hex' field")
         _print_structured_result(emit_result, _build_structured_result(
-            trust_material_complete=trust_material_complete, checks=[],
+            trust_material_complete=trust_material_complete, checks=[], exit_code=2,
+            failed_checks_override=[MALFORMED_INPUT_CHECK],
         ))
         return 2
 
@@ -687,13 +726,20 @@ def main(argv):
         _check_entry("legacy_chain", legacy_chain_attempted, legacy_chain_failures),
         _material_check_entry(material_warnings, material_failures),
     ]
-    structured_result = _build_structured_result(
-        trust_material_complete=trust_material_complete,
-        checks=checks,
-        raw_signature_valid=raw_signature_valid,
-        signature_attempted=signature_attempted,
-        raw_checkpoint_valid=raw_checkpoint_valid,
-    )
+
+    def _result_for(exit_code):
+        # Built fresh at each return site with the REAL exit code that
+        # site is about to return, rather than computed once and reused
+        # across branches with different codes -- outcome/exit_code must
+        # never drift from what main() actually returns.
+        return _build_structured_result(
+            trust_material_complete=trust_material_complete,
+            checks=checks,
+            exit_code=exit_code,
+            raw_signature_valid=raw_signature_valid,
+            signature_attempted=signature_attempted,
+            raw_checkpoint_valid=raw_checkpoint_valid,
+        )
 
     if signature_verified:
         # Strongest available verdict: a real signature check passed.
@@ -703,7 +749,7 @@ def main(argv):
         print("  mode: SIGNATURE_VERIFIED")
         for warning in material_warnings:
             print("  WARNING: " + warning)
-        _print_structured_result(emit_result, structured_result)
+        _print_structured_result(emit_result, _result_for(0))
         return 0
 
     if checkpoint_verified:
@@ -717,7 +763,7 @@ def main(argv):
         print("  mode: CHAIN_VERIFIED_KEY_UNKNOWN")
         for warning in material_warnings:
             print("  WARNING: " + warning)
-        _print_structured_result(emit_result, structured_result)
+        _print_structured_result(emit_result, _result_for(0))
         return 0
 
     print("FAIL")
@@ -730,7 +776,7 @@ def main(argv):
         print("  " + failure)
     for failure in material_failures:
         print("  " + failure)
-    _print_structured_result(emit_result, structured_result)
+    _print_structured_result(emit_result, _result_for(1))
     return 1
 
 
