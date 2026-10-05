@@ -1,0 +1,12 @@
+{
+  "exit_code": 2,
+  "proves": "No receipt_public_key_hex, no --checkpoint, --trust-material-complete declared anyway: every key (there are none) is outside the declared-complete boundary. NOT_EVALUATED / REFUSED_BY_POLICY -- explicitly NOT CRYPTOGRAPHICALLY_INVALID, the mistake this vector exists to catch.",
+  "result": {
+    "checks": [],
+    "disposition": "REFUSED_BY_POLICY",
+    "integrity_protection": "none",
+    "schema": "actaseal-verify-result.v1",
+    "trust_material_complete": true,
+    "verdict": "NOT_EVALUATED"
+  }
+}

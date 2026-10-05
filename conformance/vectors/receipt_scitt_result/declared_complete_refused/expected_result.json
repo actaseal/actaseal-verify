@@ -1,0 +1,33 @@
+{
+  "exit_code": 0,
+  "proves": "Identical input and checkpoint to default_not_evaluated/ -- only --trust-material-complete differs. verdict stays NOT_EVALUATED (the verdict never changes because of a policy declaration); disposition becomes REFUSED_BY_POLICY.",
+  "result": {
+    "checks": [
+      {
+        "check": "signature",
+        "detail": null,
+        "status": "not_attempted"
+      },
+      {
+        "check": "checkpoint",
+        "detail": null,
+        "status": "passed"
+      },
+      {
+        "check": "legacy_chain",
+        "detail": null,
+        "status": "not_attempted"
+      },
+      {
+        "check": "validation_material",
+        "detail": "VALIDATION_MATERIAL_MISSING: no embedded validation_material -- this packet cannot be re-verified offline decades from now without external lookups",
+        "status": "warning"
+      }
+    ],
+    "disposition": "REFUSED_BY_POLICY",
+    "integrity_protection": "none",
+    "schema": "actaseal-verify-result.v1",
+    "trust_material_complete": true,
+    "verdict": "NOT_EVALUATED"
+  }
+}

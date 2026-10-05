@@ -1,0 +1,33 @@
+{
+  "exit_code": 1,
+  "proves": "A tampered signature over a resolvable key fails cryptographically regardless of --trust-material-complete: CRYPTOGRAPHICALLY_INVALID / ACCEPTED either way -- an established failure is never softened by, or dependent on, the completeness declaration.",
+  "result": {
+    "checks": [
+      {
+        "check": "signature",
+        "detail": "RECEIPT_SIGNATURE_INVALID",
+        "status": "failed"
+      },
+      {
+        "check": "checkpoint",
+        "detail": null,
+        "status": "not_attempted"
+      },
+      {
+        "check": "legacy_chain",
+        "detail": null,
+        "status": "not_attempted"
+      },
+      {
+        "check": "validation_material",
+        "detail": "VALIDATION_MATERIAL_MISSING: no embedded validation_material -- this packet cannot be re-verified offline decades from now without external lookups",
+        "status": "warning"
+      }
+    ],
+    "disposition": "ACCEPTED",
+    "integrity_protection": "none",
+    "schema": "actaseal-verify-result.v1",
+    "trust_material_complete": false,
+    "verdict": "CRYPTOGRAPHICALLY_INVALID"
+  }
+}

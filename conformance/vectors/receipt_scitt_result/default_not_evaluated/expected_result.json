@@ -1,0 +1,33 @@
+{
+  "exit_code": 0,
+  "proves": "No receipt_public_key_hex at all, a --checkpoint that resolves via hash-linkage, and no --trust-material-complete declaration (the default): verdict NOT_EVALUATED (no key existed to check), disposition ACCEPTED (the default is incomplete trust material, which refuses nothing by itself).",
+  "result": {
+    "checks": [
+      {
+        "check": "signature",
+        "detail": null,
+        "status": "not_attempted"
+      },
+      {
+        "check": "checkpoint",
+        "detail": null,
+        "status": "passed"
+      },
+      {
+        "check": "legacy_chain",
+        "detail": null,
+        "status": "not_attempted"
+      },
+      {
+        "check": "validation_material",
+        "detail": "VALIDATION_MATERIAL_MISSING: no embedded validation_material -- this packet cannot be re-verified offline decades from now without external lookups",
+        "status": "warning"
+      }
+    ],
+    "disposition": "ACCEPTED",
+    "integrity_protection": "none",
+    "schema": "actaseal-verify-result.v1",
+    "trust_material_complete": false,
+    "verdict": "NOT_EVALUATED"
+  }
+}

@@ -108,6 +108,62 @@ each failed check; `2` means it could not run.
 `conformance/vectors/file_seal_v1/` holds seals ActaSeal wrote and the results it
 reported; the tests check this script gives the same.
 
+## Verify a single receipt
+
+`verify.py` checks a full dispute packet (a directory). If you only have a single
+receipt JSON -- pasted from an email, attached to a chargeback response -- use the
+lighter-weight `verify_receipt.py` instead:
+
+```bash
+pip install cryptography
+python verify_receipt.py receipt_document.json
+```
+
+It also supports a keyless/hash-linked mode (`--checkpoint <hex>`, for when the
+signing key is rotated or unknown but a trusted ledger checkpoint hash is
+available out of band) and two flags for machine-readable, SCITT-aligned output:
+
+- `--emit-result` additionally prints one line of JSON, schema
+  `actaseal-verify-result.v1`, with a `verdict`
+  (`CRYPTOGRAPHICALLY_VALID` / `CRYPTOGRAPHICALLY_INVALID` / `NOT_EVALUATED`)
+  describing *only* the cryptographic outcome, a `disposition`
+  (`ACCEPTED` / `REFUSED_BY_POLICY`) describing what a relying party should do
+  about it, `trust_material_complete` (see below), `integrity_protection`
+  (always `"none"` -- see below), and a structured `checks` list. Without this
+  flag, output and exit codes are unchanged from before this flag existed.
+- `--trust-material-complete` is a relying-party declaration (boolean, **default
+  `false`**) that the trust material you supplied -- a `receipt_public_key_hex`,
+  or none -- is a *complete* account of the keys you are willing to trust, not
+  merely "I didn't supply one." Omitting the flag is never read as a declaration
+  of completeness.
+
+The interesting case is an unresolvable signing key (no `receipt_public_key_hex`,
+verified instead via `--checkpoint`'s hash-linkage -- `CHAIN_VERIFIED_KEY_UNKNOWN`
+in the human-readable output above, unchanged):
+
+| `--trust-material-complete` | verdict | disposition |
+|---|---|---|
+| not given (default) | `NOT_EVALUATED` | `ACCEPTED` -- the check could not run; nothing was refused |
+| given | `NOT_EVALUATED` | `REFUSED_BY_POLICY` -- the key is declared outside your trust boundary |
+| given, with *no* key or checkpoint at all | `NOT_EVALUATED` | `REFUSED_BY_POLICY` -- same shape as above, not a crypto failure |
+
+A signature that genuinely runs and fails is always `CRYPTOGRAPHICALLY_INVALID` /
+`ACCEPTED`, regardless of `--trust-material-complete` -- an established failure is
+never softened by a completeness declaration.
+
+**`integrity_protection` is honestly `"none"`.** `verify_receipt.py` is a
+standalone, offline script with no separately trusted verifier identity of its
+own -- signing its own output would bind that signature to nothing a relying
+party could anchor trust in. Whatever consumption-side completeness obligation
+your own policy imposes on *you*, the relying party reading this result, does not
+apply to `verify_receipt.py` itself as the emitter: it reports what it found and
+declares, honestly, that the result travels with no integrity protection of its
+own -- transport and storage integrity for the emitted JSON is your
+responsibility, same as for any other unsigned tool output.
+
+`conformance/vectors/receipt_scitt_result/` pins four input/result pairs covering
+the table above; see `conformance/README.md`.
+
 ## Telemetry: opt-in, count-only, off by default, NOT in verify.py itself
 
 `verify.py` makes zero network calls, period -- that's a real,

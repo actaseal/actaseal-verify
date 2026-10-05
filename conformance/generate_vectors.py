@@ -441,6 +441,150 @@ def build_receipt_checkpoint_tampered_vector() -> None:
     )
 
 
+SCITT_RESULT_VECTORS_DIR = VECTORS_DIR / "receipt_scitt_result"
+VERIFY_RECEIPT_PY = REPO_ROOT / "verify_receipt.py"
+
+
+def _run_verify_receipt_emit_result(input_path: Path, *, checkpoint: str | None,
+                                     trust_material_complete: bool) -> tuple[int, dict]:
+    """Invokes the real verify_receipt.py as a subprocess and parses its
+    --emit-result JSON line -- the vector's pinned expected result is
+    always literally what the script just produced, not a hand-computed
+    guess of what it should produce, so a future accidental regression
+    in verify_receipt.py's own decision logic is caught by THIS
+    regeneration step (the assertions in each build_scitt_* function
+    below) rather than only much later in the separate conformance test
+    file."""
+    import subprocess
+
+    cmd = [sys.executable, str(VERIFY_RECEIPT_PY), str(input_path), "--emit-result"]
+    if checkpoint is not None:
+        cmd += ["--checkpoint", checkpoint]
+    if trust_material_complete:
+        cmd.append("--trust-material-complete")
+    completed = subprocess.run(cmd, capture_output=True, text=True)
+    result_line = next(line for line in completed.stdout.splitlines() if line.startswith("{"))
+    return completed.returncode, json.loads(result_line)
+
+
+def _write_scitt_result_vector(directory: Path, document: dict, *, checkpoint: str | None,
+                                trust_material_complete: bool, proves: str) -> dict:
+    """Paired input + pinned expected-result vector for the SCITT-aligned
+    structured --emit-result output (actaseal-verify-result.v1). Unlike
+    _write_receipt_vector's hand-authored expected.json, `expected_result`
+    is the actual subprocess output captured by
+    _run_verify_receipt_emit_result -- see that function's docstring."""
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "input.json").write_text(_canonical_receipt_dumps(document), encoding="utf-8")
+    exit_code, result = _run_verify_receipt_emit_result(
+        directory / "input.json", checkpoint=checkpoint, trust_material_complete=trust_material_complete,
+    )
+    meta = {"checkpoint": checkpoint, "trust_material_complete": trust_material_complete}
+    (directory / "meta.json").write_text(
+        json.dumps(meta, indent=2, sort_keys=True) + "\n", encoding="utf-8",
+    )
+    expected = {"exit_code": exit_code, "result": result, "proves": proves}
+    (directory / "expected_result.json").write_text(
+        json.dumps(expected, indent=2, sort_keys=True) + "\n", encoding="utf-8",
+    )
+    return result
+
+
+def build_scitt_default_not_evaluated_vector() -> None:
+    """(a) The unresolvable-key case in its default posture: no
+    receipt_public_key_hex at all, a --checkpoint that DOES resolve
+    (unbroken chain, contains both the receipt's ledger_entry_hash and
+    the checkpoint hash). --trust-material-complete is NOT given (the
+    default, False). The cryptographic check never ran -- there was no
+    key to check -- and nothing was refused: NOT_EVALUATED / ACCEPTED."""
+    signing_key = _fixed_ed25519_key("scitt_result:default_not_evaluated")
+    receipt = _sign_receipt_fields(signing_key, _unsigned_checkpoint_receipt())
+    document = {"receipt": receipt, "ledger_slice": _checkpoint_chain(receipt)}
+    directory = SCITT_RESULT_VECTORS_DIR / "default_not_evaluated"
+    result = _write_scitt_result_vector(
+        directory, document,
+        checkpoint=receipt["ledger_entry_hash"], trust_material_complete=False,
+        proves="No receipt_public_key_hex at all, a --checkpoint that resolves via hash-linkage, "
+        "and no --trust-material-complete declaration (the default): verdict NOT_EVALUATED "
+        "(no key existed to check), disposition ACCEPTED (the default is incomplete trust "
+        "material, which refuses nothing by itself).",
+    )
+    assert result["verdict"] == "NOT_EVALUATED" and result["disposition"] == "ACCEPTED", result
+
+
+def build_scitt_declared_complete_refused_vector() -> None:
+    """(b) SAME artifact and SAME supplied key material as (a) -- here,
+    none at all -- only the --trust-material-complete declaration
+    differs. The relying party has now declared its (empty) key set
+    complete, so the unresolved key is definitively outside its trust
+    boundary: still NOT_EVALUATED (the crypto check still never ran),
+    but now REFUSED_BY_POLICY instead of ACCEPTED."""
+    signing_key = _fixed_ed25519_key("scitt_result:default_not_evaluated")
+    receipt = _sign_receipt_fields(signing_key, _unsigned_checkpoint_receipt())
+    document = {"receipt": receipt, "ledger_slice": _checkpoint_chain(receipt)}
+    directory = SCITT_RESULT_VECTORS_DIR / "declared_complete_refused"
+    result = _write_scitt_result_vector(
+        directory, document,
+        checkpoint=receipt["ledger_entry_hash"], trust_material_complete=True,
+        proves="Identical input and checkpoint to default_not_evaluated/ -- only "
+        "--trust-material-complete differs. verdict stays NOT_EVALUATED (the verdict never "
+        "changes because of a policy declaration); disposition becomes REFUSED_BY_POLICY.",
+    )
+    assert result["verdict"] == "NOT_EVALUATED" and result["disposition"] == "REFUSED_BY_POLICY", result
+
+
+def build_scitt_empty_trust_refused_vector() -> None:
+    """(c) The case implementations most often get wrong: an EMPTY
+    declared-complete trust list (here: no receipt_public_key_hex, and
+    no --checkpoint given either, so there is no key material of any
+    kind to check against) with --trust-material-complete declared.
+    Every key is outside the (empty) boundary -- this must still be
+    NOT_EVALUATED / REFUSED_BY_POLICY, the same policy-refusal shape as
+    (b), NOT CRYPTOGRAPHICALLY_INVALID: nothing was cryptographically
+    attempted and failed, a relying party simply declared it will not
+    trust what (nothing) it was given."""
+    signing_key = _fixed_ed25519_key("scitt_result:empty_trust")
+    receipt = _sign_receipt_fields(signing_key, _unsigned_checkpoint_receipt())
+    document = {"receipt": receipt}
+    directory = SCITT_RESULT_VECTORS_DIR / "empty_trust_refused"
+    result = _write_scitt_result_vector(
+        directory, document,
+        checkpoint=None, trust_material_complete=True,
+        proves="No receipt_public_key_hex, no --checkpoint, --trust-material-complete declared "
+        "anyway: every key (there are none) is outside the declared-complete boundary. "
+        "NOT_EVALUATED / REFUSED_BY_POLICY -- explicitly NOT CRYPTOGRAPHICALLY_INVALID, the "
+        "mistake this vector exists to catch.",
+    )
+    assert result["verdict"] == "NOT_EVALUATED" and result["disposition"] == "REFUSED_BY_POLICY", result
+
+
+def build_scitt_signature_invalid_vector() -> None:
+    """(d) A genuine signature failure (the signature is tampered, not
+    merely an unresolvable key) must report CRYPTOGRAPHICALLY_INVALID
+    under BOTH --trust-material-complete values -- an established
+    cryptographic failure outranks and is never softened by a
+    completeness declaration. Two sibling directories, same tampered
+    artifact, differing only in the flag."""
+    signing_key = _fixed_ed25519_key("scitt_result:signature_invalid")
+    receipt = _sign_receipt_fields(signing_key, _unsigned_checkpoint_receipt())
+    tampered_signature = bytes.fromhex(receipt["signature"])
+    tampered_signature = bytes([tampered_signature[0] ^ 0xFF]) + tampered_signature[1:]
+    receipt = dict(receipt, signature=tampered_signature.hex())
+    document = {"receipt": receipt, "receipt_public_key_hex": signing_key.public_key().public_bytes_raw().hex()}
+
+    for trust_material_complete, name in ((False, "default"), (True, "declared_complete")):
+        directory = SCITT_RESULT_VECTORS_DIR / "signature_invalid" / name
+        result = _write_scitt_result_vector(
+            directory, document,
+            checkpoint=None, trust_material_complete=trust_material_complete,
+            proves="A tampered signature over a resolvable key fails cryptographically regardless "
+            "of --trust-material-complete: CRYPTOGRAPHICALLY_INVALID / ACCEPTED either way -- an "
+            "established failure is never softened by, or dependent on, the completeness "
+            "declaration.",
+        )
+        assert result["verdict"] == "CRYPTOGRAPHICALLY_INVALID" and result["disposition"] == "ACCEPTED", result
+
+
 def write_pin() -> None:
     entries = []
     for path in sorted(VECTORS_DIR.rglob("*")):
@@ -480,6 +624,8 @@ def main() -> int:
         receipt_checkpoint_dir = VECTORS_DIR / "receipt_checkpoint"
         if receipt_checkpoint_dir.exists():
             shutil.rmtree(receipt_checkpoint_dir)
+        if SCITT_RESULT_VECTORS_DIR.exists():
+            shutil.rmtree(SCITT_RESULT_VECTORS_DIR)
     build_valid_vector()
     build_tampered_payload_vector()
     build_tampered_chain_vector()
@@ -490,6 +636,10 @@ def main() -> int:
     build_receipt_checkpoint_signature_verified_vector()
     build_receipt_checkpoint_key_unknown_vector()
     build_receipt_checkpoint_tampered_vector()
+    build_scitt_default_not_evaluated_vector()
+    build_scitt_declared_complete_refused_vector()
+    build_scitt_empty_trust_refused_vector()
+    build_scitt_signature_invalid_vector()
     write_pin()
     print(f"Wrote vectors to {VECTORS_DIR}")
     print(f"Pinned {PIN_FILE}")
