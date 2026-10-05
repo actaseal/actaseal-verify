@@ -19,7 +19,7 @@ dependencies = ["cryptography"]
 rfc3161 = ["asn1crypto"]
 
 [tool.setuptools]
-py-modules = ["verify"]
+py-modules = ["verify", "verify_seal"]
 
 # No console_scripts entry point on purpose: verify.py's main(argv) takes an
 # argv-style list so that it stays a byte-identical copy of the file every
