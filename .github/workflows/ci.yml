@@ -25,6 +25,11 @@ jobs:
         run: |
           python verify.py demo/demo-packet-unanchored
           python verify.py demo/demo-packet-anchored
+      - name: Seal verifier with RFC 3161 timestamp checks
+        run: |
+          pip install asn1crypto
+          pytest -q tests/test_verify_seal_v1.py
+          python verify_seal.py conformance/vectors/file_seal_v1/seal_day2.json --base conformance/vectors/file_seal_v1/files --previous conformance/vectors/file_seal_v1/seal_day1.json --public-key 4b315914e216de29066d2563f734d587e816389cceca88dd450389c008e82f0d --tsa-ca conformance/vectors/file_seal_v1/test_tsa_ca.pem --require-timestamp
 
       - name: Generate SBOM (CycloneDX)
         if: matrix.python-version == '3.12'
@@ -58,6 +63,11 @@ jobs:
           python verify.py demo/demo-packet-anchored
       - name: Run conformance vectors
         run: pytest -q conformance/test_conformance.py
+      - name: Seal verifier with RFC 3161 timestamp checks
+        run: |
+          pip install asn1crypto
+          pytest -q tests/test_verify_seal_v1.py
+          python verify_seal.py conformance/vectors/file_seal_v1/seal_day2.json --base conformance/vectors/file_seal_v1/files --previous conformance/vectors/file_seal_v1/seal_day1.json --public-key 4b315914e216de29066d2563f734d587e816389cceca88dd450389c008e82f0d --tsa-ca conformance/vectors/file_seal_v1/test_tsa_ca.pem --require-timestamp
 
   # Confirms the PUBLISHED @actaseal/verify npm package (not this repo's
   # local tamper_demo/ source) actually works when installed fresh from

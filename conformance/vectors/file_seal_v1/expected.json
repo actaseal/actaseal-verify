@@ -1,0 +1,24 @@
+{
+  "public_key_hex": "4b315914e216de29066d2563f734d587e816389cceca88dd450389c008e82f0d",
+  "tsa_gen_time": "2026-10-05T10:00:00+00:00",
+  "day1": {
+    "status": "PASS",
+    "seal_sha256": "6c1af1893ed3726ad0544c4a574917844f968d43d3b6878c60ae907e8b10d3d5",
+    "files_checked": 1,
+    "failures": [],
+    "warnings": [],
+    "timestamp_status": "OK",
+    "timestamped_at": "2026-10-05T10:00:00+00:00",
+    "signed_by": "4b315914e216de29066d2563f734d587e816389cceca88dd450389c008e82f0d"
+  },
+  "day2_with_previous": {
+    "status": "PASS",
+    "seal_sha256": "d127028e5180aadc2ca6abe00e82c7ef12a03fd8845722a68ca0bf9cf8eecee6",
+    "files_checked": 2,
+    "failures": [],
+    "warnings": [],
+    "timestamp_status": "OK",
+    "timestamped_at": "2026-10-05T10:00:00+00:00",
+    "signed_by": "4b315914e216de29066d2563f734d587e816389cceca88dd450389c008e82f0d"
+  }
+}

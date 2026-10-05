@@ -2,7 +2,8 @@
 
 Verify an ActaSeal dispute evidence packet yourself, in about 60 seconds,
 without installing ActaSeal, without a network call, and without trusting
-us. This repo is one script (`verify.py`) plus a spec.
+us. This repo is one script (`verify.py`) plus a spec. A second script,
+`verify_seal.py`, does the same for sealed files (see below).
 
 Who this is for: an underwriter, dispute analyst, or auditor who has been
 handed a packet (a `.zip`) and wants to check, independently, that:
@@ -75,6 +76,37 @@ Ed25519 receipt signatures only -- see `tamper_demo/README.npm.md` for
 its exact (reduced) scope before relying on it for anything beyond a
 quick client-side check. The real `verify.py` above is the canonical,
 full-scope verifier.
+
+## Verify sealed files (logs, an evidence pack)
+
+ActaSeal can also seal a set of files -- application logs, an evidence pack, an
+audit submission -- once or daily. `verify_seal.py` checks such a seal yourself,
+offline:
+
+```bash
+pip install cryptography asn1crypto   # asn1crypto only for the RFC 3161 timestamp
+python verify_seal.py seal-2026-10-05.json --base /path/to/the/files \
+    --previous seal-2026-10-04.json --public-key <the sealer's public key> \
+    --tsa-ca <timestamp authority CA>.pem --require-timestamp
+```
+
+It checks that every sealed file is byte-for-byte unchanged, that the seal itself
+was not edited, the Ed25519 signature and that it is by the key you expect, the
+link to the previous seal (a dropped or rewritten day breaks it), and the RFC 3161
+timestamp over the seal. Exit code `0` and `VERIFIED` means all passed; `1` lists
+each failed check; `2` means it could not run.
+
+- Without `--public-key`, a valid signature only shows the seal is self-consistent:
+  anyone can re-seal changed files with their own key. Get the key from the sealer
+  through a separate channel.
+- The timestamp's certificate must chain to a CA you pass with `--tsa-ca`, or to
+  freeTSA's root (embedded, SHA-256 pinned) for seals timestamped by freeTSA; never
+  to a CA named inside the seal. `--skip-timestamp` checks everything else.
+- Only the files a seal lists are checked; files added later are not reported. A
+  seal shows files did not change after sealing, not that they were correct then.
+
+`conformance/vectors/file_seal_v1/` holds seals ActaSeal wrote and the results it
+reported; the tests check this script gives the same.
 
 ## Telemetry: opt-in, count-only, off by default, NOT in verify.py itself
 
@@ -167,6 +199,7 @@ See [`SPEC.md`](SPEC.md) for the full packet format.
 
 ```
 verify.py                    the verifier -- the only file that matters at verify time
+verify_seal.py               verifier for sealed files (logs, evidence packs)
 generate_demo_packet.py      builds the two demo packets below, from scratch, standalone
 demo/demo-packet-unanchored/ a valid packet with no settlement anchor
 demo/demo-packet-anchored/   a valid packet with a payment-rail settlement anchor
