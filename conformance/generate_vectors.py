@@ -466,8 +466,10 @@ def main() -> int:
     # regenerates (DISPUTE_PACKET_VECTOR_NAMES) -- a bare
     # shutil.rmtree(VECTORS_DIR) here would also delete
     # archive_attestation_v1/ (the separate RFC 3161 / SCITT-receipt
-    # vector set test_archive_attestation_conformance.py owns), which
-    # this script has no logic to rebuild.
+    # vector set test_archive_attestation_conformance.py owns) and
+    # file_seal_v1/ (seals written by ActaSeal itself, which
+    # tests/test_verify_seal_v1.py owns), which this script has no logic
+    # to rebuild. Both are still pinned by write_pin().
     if VECTORS_DIR.exists():
         import shutil
 
