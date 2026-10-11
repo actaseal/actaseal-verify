@@ -37,12 +37,15 @@ Checks, all of which must hold:
   event (verdict, breach dimensions, recorded scope/action hashes);
   missing or mismatched fails naming SCOPE_*.
 
-Trust root: receipt_public_key_hex in manifest.json. Compare it out of
-band against the gateway operator's published key -- a packet re-signed
-end to end with a different key is internally consistent.
+Trust root: receipt_public_key_hex in manifest.json. It must match the
+signed receipt's signer_pubkey_hash. Pin the gateway operator's
+published key with --receipt-public-key HEX; without it, VERIFIED says
+the key was not independently checked, because a packet re-signed end
+to end with a different key is internally consistent.
 
 Usage: python verify.py [packet_dir_or_zip] [--anchors PATH]
   [--archive-export] [--tsa-ca-cert PATH ...] [--sth-public-key HEX]
+  [--receipt-public-key HEX]
   packet_dir_or_zip accepts EITHER a .zip packet (extracted into a fresh
   temp directory automatically, with the same zip-slip/decompression-
   bomb/symlink-member protections actaseal.dispute.safe_zip applies in
@@ -326,6 +329,42 @@ def verify_events(manifest, events, failures):
     action_id = manifest.get("action_id")
     if not any(event.get("action_id") == action_id for event in events):
         failures.append("ACTION_NOT_IN_SLICE: %r" % action_id)
+
+
+def verify_receipt_key_binding(manifest, receipt, failures, pinned_public_key_hex=None):
+    """The receipt signature is checked against manifest.json's
+    receipt_public_key_hex, a key the packet supplies itself. Two extra
+    checks keep that from being a free choice for whoever built the
+    packet:
+
+    - the signed receipt's signer_pubkey_hash (sha256 of the raw signer
+      public key, inside the signature) must match that manifest key, so
+      swapping in a different key without re-issuing the receipt's own
+      signed fields fails;
+    - if the relying party pins the operator's published key with
+      --receipt-public-key, the manifest key must equal it.
+
+    A receipt with no signer_pubkey_hash (issued before the field existed)
+    skips only the first check; the unpinned VERIFIED output still says
+    the key was not independently checked."""
+    manifest_key_hex = str(manifest.get("receipt_public_key_hex") or "")
+    declared_hash = receipt.get("signer_pubkey_hash")
+    if declared_hash:
+        try:
+            actual_hash = hashlib.sha256(bytes.fromhex(manifest_key_hex)).hexdigest()
+        except ValueError:
+            actual_hash = None
+        if actual_hash != declared_hash:
+            failures.append(
+                "RECEIPT_SIGNER_PUBKEY_HASH_MISMATCH: the signed receipt names signer_pubkey_hash %s, "
+                "but manifest.json's receipt_public_key_hex hashes to %s" % (declared_hash, actual_hash)
+            )
+    if pinned_public_key_hex is not None:
+        if pinned_public_key_hex.strip().lower() != manifest_key_hex.strip().lower():
+            failures.append(
+                "RECEIPT_KEY_NOT_TRUSTED: packet declares receipt key %s, --receipt-public-key is %s"
+                % (manifest_key_hex, pinned_public_key_hex)
+            )
 
 
 def verify_receipt(manifest, receipt, events, failures, crypto):
@@ -1432,6 +1471,7 @@ def main(argv):
     archive_export_mode = False
     tsa_ca_cert_paths = []
     sth_public_key_hex = None
+    receipt_public_key_pin = None
     args = list(argv[1:])
     while args:
         arg = args.pop(0)
@@ -1452,6 +1492,11 @@ def main(argv):
                 print("UNABLE_TO_RUN: --sth-public-key requires a hex-encoded public key argument")
                 return 2
             sth_public_key_hex = args.pop(0)
+        elif arg == "--receipt-public-key":
+            if not args:
+                print("UNABLE_TO_RUN: --receipt-public-key requires a hex-encoded public key argument")
+                return 2
+            receipt_public_key_pin = args.pop(0)
         else:
             positional.append(arg)
 
@@ -1527,6 +1572,7 @@ def main(argv):
     verify_ledger_root_version(base, failures)
     verify_events(manifest, events, failures)
     verify_receipt(manifest, receipt, events, failures, crypto)
+    verify_receipt_key_binding(manifest, receipt, failures, receipt_public_key_pin)
     verify_continuity_checkpoint(base, receipt, failures, crypto)
     verify_authentication_docs(receipt, events, base, failures)
     verify_scope_conformance(manifest, receipt, events, failures)
@@ -1543,6 +1589,15 @@ def main(argv):
     print("VERIFIED: %d ledger events, receipt signature valid, chain intact" % len(events))
     print("  action_id: %s" % manifest.get("action_id"))
     print("  decision: %s (%s)" % (receipt.get("decision"), receipt.get("reason_code")))
+    if receipt_public_key_pin:
+        print("  receipt key matches --receipt-public-key (checked against the key you supplied)")
+    else:
+        print(
+            "  receipt key NOT checked against an independent key -- no --receipt-public-key given. "
+            "The signature was checked against the key this packet itself declares: %s. "
+            "Compare it with the operator's published key out of band; a packet re-signed "
+            "end to end with another key is internally consistent." % manifest.get("receipt_public_key_hex")
+        )
     return 0
 
 
