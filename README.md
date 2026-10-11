@@ -249,7 +249,12 @@ these independently re-derives from data already inside the packet:
    an unbroken hash chain from the manifest's declared starting point.
 2. **Receipt signature** -- the receipt's Ed25519/ECDSA signature verifies
    against `manifest.json`'s embedded public key, over the canonical JSON
-   of the receipt (minus the signature field itself).
+   of the receipt (minus the signature field itself). That key must also
+   hash to the receipt's signed `signer_pubkey_hash`
+   (`RECEIPT_SIGNER_PUBKEY_HASH_MISMATCH` otherwise). Pass
+   `--receipt-public-key HEX` with the operator's published key to pin it
+   (`RECEIPT_KEY_NOT_TRUSTED` on mismatch); without it, the output says
+   the key was not independently checked.
 3. **Receipt-to-chain binding** -- the receipt's `ledger_entry_hash` names
    a real event in the slice, for the same action, and that event's
    recorded action hash matches the receipt's.
@@ -272,8 +277,8 @@ See [`SPEC.md`](SPEC.md) for the full packet format.
 - That the underlying transaction/refund/decision was *correct* -- only
   that the recorded evidence is internally consistent and unaltered.
 - That `receipt_public_key_hex` belongs to the operator you think it
-  does -- that binding is on you, out of band (e.g. compare against a
-  key the operator has published elsewhere).
+  does, unless you pass `--receipt-public-key` with a key you got out of
+  band (e.g. one the operator has published elsewhere).
 - Anything about a deployment you haven't been handed a packet from.
 
 ## Repo layout
