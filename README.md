@@ -119,6 +119,12 @@ pip install cryptography
 python verify_receipt.py receipt_document.json
 ```
 
+As with `verify.py`, the receipt's signed `signer_pubkey_hash` must match the
+document's `receipt_public_key_hex` (`RECEIPT_SIGNER_PUBKEY_HASH_MISMATCH`
+otherwise), and `--receipt-public-key HEX` pins the operator's published key
+(`RECEIPT_KEY_NOT_TRUSTED` on mismatch); without it, a PASS says the key was
+not independently checked.
+
 It also supports a keyless/hash-linked mode (`--checkpoint <hex>`, for when the
 signing key is rotated or unknown but a trusted ledger checkpoint hash is
 available out of band) and two flags for machine-readable, SCITT-aligned output:

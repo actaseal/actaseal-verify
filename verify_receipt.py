@@ -65,6 +65,14 @@ slice; it does not itself fetch or validate any transparency log.
 
 Usage: python verify_receipt.py [receipt_file.json] [--checkpoint <hex>]
                                  [--trust-material-complete] [--emit-result]
+                                 [--receipt-public-key <hex>]
+
+`--receipt-public-key <hex>` pins the operator's published signing key:
+the document's receipt_public_key_hex must equal it (RECEIPT_KEY_NOT_TRUSTED
+otherwise). Independently of that, a receipt's signed signer_pubkey_hash
+must hash-match the document's key (RECEIPT_SIGNER_PUBKEY_HASH_MISMATCH),
+so a receipt re-signed with a swapped-in key fails. Without the pin, a PASS
+says the key was not independently checked.
   receipt_file.json defaults to stdin when omitted.
 Exit codes: 0 PASS, 1 FAIL (signature and/or chain check failed),
 2 malformed input (unreadable JSON, missing required fields, missing
@@ -260,6 +268,31 @@ def verify_signature(receipt, public_key_hex, failures, crypto):
         TypeError,
     ):
         failures.append("RECEIPT_SIGNATURE_INVALID")
+
+
+def verify_receipt_key_binding(receipt, public_key_hex, failures, pinned_public_key_hex=None):
+    """The document supplies its own receipt_public_key_hex, so a valid
+    signature alone proves nothing about WHO signed. Two checks:
+    the signed signer_pubkey_hash (sha256 of the public key bytes, same
+    for every algorithm) must match the document's key, and an optional
+    relying-party pin (--receipt-public-key) must equal it."""
+    declared_hash = receipt.get("signer_pubkey_hash")
+    if declared_hash:
+        try:
+            actual_hash = hashlib.sha256(bytes.fromhex(public_key_hex)).hexdigest()
+        except ValueError:
+            actual_hash = None
+        if actual_hash != declared_hash:
+            failures.append(
+                "RECEIPT_SIGNER_PUBKEY_HASH_MISMATCH: the signed receipt names signer_pubkey_hash %s, "
+                "but receipt_public_key_hex hashes to %s" % (declared_hash, actual_hash)
+            )
+    if pinned_public_key_hex is not None:
+        if pinned_public_key_hex.strip().lower() != public_key_hex.strip().lower():
+            failures.append(
+                "RECEIPT_KEY_NOT_TRUSTED: document declares receipt key %s, --receipt-public-key is %s"
+                % (public_key_hex, pinned_public_key_hex)
+            )
 
 
 def _chain_hashes(ledger_slice, failures):
@@ -593,6 +626,21 @@ def main(argv):
             return 2
         args = args[:flag_index] + args[flag_index + 2 :]
 
+    pinned_public_key_hex = None
+    if "--receipt-public-key" in args:
+        flag_index = args.index("--receipt-public-key")
+        try:
+            pinned_public_key_hex = args[flag_index + 1]
+        except IndexError:
+            print("FAIL")
+            print("  MALFORMED_INPUT: --receipt-public-key requires a value")
+            _print_structured_result(emit_result, _build_structured_result(
+                trust_material_complete=trust_material_complete, checks=[], exit_code=2,
+                failed_checks_override=[MALFORMED_INPUT_CHECK],
+            ))
+            return 2
+        args = args[:flag_index] + args[flag_index + 2 :]
+
     try:
         if args:
             from pathlib import Path
@@ -678,6 +726,7 @@ def main(argv):
     signature_attempted = have_key
     if have_key:
         verify_signature(receipt, public_key_hex, signature_failures, crypto)
+        verify_receipt_key_binding(receipt, public_key_hex, signature_failures, pinned_public_key_hex)
     signature_verified = signature_attempted and not signature_failures
     # Frozen snapshot of the RAW cryptographic outcome, taken before
     # legacy_chain_failures/material_failures (below) are allowed to
@@ -747,6 +796,11 @@ def main(argv):
         print("PASS")
         print("  verdict: %s" % receipt.get("decision"))
         print("  mode: SIGNATURE_VERIFIED")
+        if pinned_public_key_hex is not None:
+            print("  receipt key matches --receipt-public-key (checked against the key you supplied)")
+        else:
+            print("  receipt key NOT checked against an independent key (no --receipt-public-key given); "
+                  "the document itself declares %s -- compare it with the operator's published key" % public_key_hex)
         for warning in material_warnings:
             print("  WARNING: " + warning)
         _print_structured_result(emit_result, _result_for(0))
