@@ -632,6 +632,9 @@ def _print_structured_result(emit_result, result):
 
 
 def main(argv):
+    if any(a in ("-h", "--help") for a in argv[1:]):
+        print((globals().get("__doc__") or "").strip())
+        return 0
     # Parsed first, before anything else can fail/return early: both are
     # boolean presence flags (no value), so every downstream early-return
     # path (missing 'cryptography', malformed JSON, etc.) still knows

@@ -1517,6 +1517,9 @@ def verify_archive_export(base, *, tsa_ca_cert_paths=None, sth_public_key_hex=No
 
 
 def main(argv):
+    if any(a in ("-h", "--help") for a in argv[1:]):
+        print((globals().get("__doc__") or "").strip())
+        return 0
     try:
         from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
         from cryptography.hazmat.primitives import hashes
