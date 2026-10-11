@@ -43,9 +43,17 @@ published key with --receipt-public-key HEX; without it, VERIFIED says
 the key was not independently checked, because a packet re-signed end
 to end with a different key is internally consistent.
 
+Or pass the operator's full key history with --receipt-keyring PATH (its
+/.well-known/actaseal-keys.json). The receipt is then checked against
+the key its own key_id names, and the result names that key_id with one
+of RECEIPT_KEY_CURRENT, RECEIPT_KEY_ROTATED_OUT (genuine, signed under a
+retired key), RECEIPT_KEY_UNKNOWN, RECEIPT_SIGNATURE_INVALID or
+RECEIPT_KEY_REVOKED. A pinned current key alone cannot tell a receipt
+from before a rotation apart from a forgery.
+
 Usage: python verify.py [packet_dir_or_zip] [--anchors PATH]
   [--archive-export] [--tsa-ca-cert PATH ...] [--sth-public-key HEX]
-  [--receipt-public-key HEX]
+  [--receipt-public-key HEX | --receipt-keyring PATH]
   packet_dir_or_zip accepts EITHER a .zip packet (extracted into a fresh
   temp directory automatically, with the same zip-slip/decompression-
   bomb/symlink-member protections actaseal.dispute.safe_zip applies in
@@ -453,6 +461,70 @@ def verify_receipt(manifest, receipt, events, failures, crypto):
     recorded_action_hash = bound_event.get("payload", {}).get("action_packet_hash")
     if recorded_action_hash is not None and recorded_action_hash != receipt.get("action_hash"):
         failures.append("RECEIPT_ACTION_HASH_MISMATCH")
+
+
+def load_receipt_keyring(path):
+    # The operator's /.well-known/actaseal-keys.json: every key_id, current
+    # and historical, revoked flagged rather than omitted.
+    document = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(document, dict) or not isinstance(document.get("keys"), list):
+        raise ValueError("expected an object with a 'keys' list (actaseal-keys.v1)")
+    keyring = {}
+    for entry in document["keys"]:
+        if not isinstance(entry, dict) or not entry.get("kid") or not entry.get("public_key_hex"):
+            raise ValueError("every key entry needs 'kid' and 'public_key_hex'")
+        keyring[str(entry["kid"])] = entry
+    return keyring
+
+
+def classify_receipt_key(receipt, keyring, signature_ok, failures):
+    """With a keyring, a receipt is checked against the key its own key_id
+    names, never the key the artifact declares. A genuine receipt under a
+    rotated-out key and a forged one must never share an outcome."""
+    kid = receipt.get("key_id")
+    entry = keyring.get(str(kid)) if kid else None
+    if entry is None:
+        failures.append(
+            "RECEIPT_KEY_UNKNOWN: receipt was signed under key_id %r, which is not in the supplied "
+            "--receipt-keyring; get that key from the operator to check this receipt" % kid
+        )
+        return "RECEIPT_KEY_UNKNOWN"
+    if not signature_ok:
+        failures.append(
+            "RECEIPT_SIGNATURE_INVALID: receipt does not verify under key_id %r from --receipt-keyring "
+            "(tampered, or signed by a different key)" % kid
+        )
+        return "RECEIPT_SIGNATURE_INVALID"
+    if entry.get("revoked"):
+        failures.append(
+            "RECEIPT_KEY_REVOKED: receipt verifies under key_id %r, but that key was revoked at %s (%s)"
+            % (kid, entry.get("revoked_at"), entry.get("revoked_reason"))
+        )
+        return "RECEIPT_KEY_REVOKED"
+    if entry.get("active"):
+        return "RECEIPT_KEY_CURRENT"
+    return "RECEIPT_KEY_ROTATED_OUT"
+
+
+def verify_receipt_with_keyring(manifest, receipt, events, failures, crypto, keyring):
+    kid = receipt.get("key_id")
+    entry = keyring.get(str(kid)) if kid else None
+    receipt_failures = []
+    if entry is None:
+        # The chain-binding checks still run; only the signature is unevaluable.
+        verify_receipt(manifest, receipt, events, receipt_failures, crypto)
+        failures.extend(f for f in receipt_failures if f != "RECEIPT_SIGNATURE_INVALID")
+        return classify_receipt_key(receipt, keyring, False, failures)
+    verify_receipt(dict(manifest, receipt_public_key_hex=entry["public_key_hex"]), receipt, events, receipt_failures, crypto)
+    signature_ok = "RECEIPT_SIGNATURE_INVALID" not in receipt_failures
+    failures.extend(f for f in receipt_failures if f != "RECEIPT_SIGNATURE_INVALID")
+    status = classify_receipt_key(receipt, keyring, signature_ok, failures)
+    if signature_ok and str(manifest.get("receipt_public_key_hex") or "").lower() != str(entry["public_key_hex"]).lower():
+        failures.append(
+            "RECEIPT_MANIFEST_KEY_MISMATCH: manifest.json declares receipt key %s, but key_id %r in "
+            "--receipt-keyring is %s" % (manifest.get("receipt_public_key_hex"), kid, entry["public_key_hex"])
+        )
+    return status
 
 
 def _load_doc(base, name, missing_code, failures):
@@ -1472,6 +1544,7 @@ def main(argv):
     tsa_ca_cert_paths = []
     sth_public_key_hex = None
     receipt_public_key_pin = None
+    receipt_keyring_path = None
     args = list(argv[1:])
     while args:
         arg = args.pop(0)
@@ -1497,8 +1570,24 @@ def main(argv):
                 print("UNABLE_TO_RUN: --receipt-public-key requires a hex-encoded public key argument")
                 return 2
             receipt_public_key_pin = args.pop(0)
+        elif arg == "--receipt-keyring":
+            if not args:
+                print("UNABLE_TO_RUN: --receipt-keyring requires a path argument")
+                return 2
+            receipt_keyring_path = args.pop(0)
         else:
             positional.append(arg)
+
+    receipt_keyring = None
+    if receipt_keyring_path is not None:
+        if receipt_public_key_pin:
+            print("UNABLE_TO_RUN: pass either --receipt-keyring or --receipt-public-key, not both")
+            return 2
+        try:
+            receipt_keyring = load_receipt_keyring(receipt_keyring_path)
+        except (OSError, ValueError) as exc:
+            print("UNABLE_TO_RUN: unreadable --receipt-keyring %s: %s" % (receipt_keyring_path, exc))
+            return 2
 
     if positional:
         try:
@@ -1571,7 +1660,11 @@ def main(argv):
     verify_offline_verifier_digest(manifest, failures)
     verify_ledger_root_version(base, failures)
     verify_events(manifest, events, failures)
-    verify_receipt(manifest, receipt, events, failures, crypto)
+    receipt_key_status = None
+    if receipt_keyring is not None:
+        receipt_key_status = verify_receipt_with_keyring(manifest, receipt, events, failures, crypto, receipt_keyring)
+    else:
+        verify_receipt(manifest, receipt, events, failures, crypto)
     verify_receipt_key_binding(manifest, receipt, failures, receipt_public_key_pin)
     verify_continuity_checkpoint(base, receipt, failures, crypto)
     verify_authentication_docs(receipt, events, base, failures)
@@ -1589,7 +1682,12 @@ def main(argv):
     print("VERIFIED: %d ledger events, receipt signature valid, chain intact" % len(events))
     print("  action_id: %s" % manifest.get("action_id"))
     print("  decision: %s (%s)" % (receipt.get("decision"), receipt.get("reason_code")))
-    if receipt_public_key_pin:
+    if receipt_key_status is not None:
+        print(
+            "  %s: receipt signed under key_id %r, checked against --receipt-keyring"
+            % (receipt_key_status, receipt.get("key_id"))
+        )
+    elif receipt_public_key_pin:
         print("  receipt key matches --receipt-public-key (checked against the key you supplied)")
     else:
         print(

@@ -231,7 +231,7 @@ network access -- it is standalone by construction (see the assertion in
 The only third-party package it needs is `cryptography`, for Ed25519/ECDSA
 signature checks. That means:
 
-- you can read the whole verifier in one sitting (~1,550 lines, no
+- you can read the whole verifier in one sitting (~1,700 lines, no
   framework, no magic) and know exactly what it checks;
 - you never run vendor code against your own systems to check evidence
   someone handed you -- it only reads files from the packet directory;
@@ -260,7 +260,15 @@ these independently re-derives from data already inside the packet:
    (`RECEIPT_SIGNER_PUBKEY_HASH_MISMATCH` otherwise). Pass
    `--receipt-public-key HEX` with the operator's published key to pin it
    (`RECEIPT_KEY_NOT_TRUSTED` on mismatch); without it, the output says
-   the key was not independently checked.
+   the key was not independently checked. Or pass the operator's whole
+   key history with `--receipt-keyring PATH` (its
+   `/.well-known/actaseal-keys.json`): the receipt is checked against the
+   key its own `key_id` names, so a genuine receipt signed before a key
+   rotation (`RECEIPT_KEY_ROTATED_OUT`, passes) is never confused with a
+   forged or tampered one (`RECEIPT_SIGNATURE_INVALID`). The other
+   outcomes are `RECEIPT_KEY_CURRENT`, `RECEIPT_KEY_UNKNOWN` and
+   `RECEIPT_KEY_REVOKED`; each names the `key_id`. `verify_receipt.py`
+   takes the same flag.
 3. **Receipt-to-chain binding** -- the receipt's `ledger_entry_hash` names
    a real event in the slice, for the same action, and that event's
    recorded action hash matches the receipt's.

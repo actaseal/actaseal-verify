@@ -65,7 +65,16 @@ slice; it does not itself fetch or validate any transparency log.
 
 Usage: python verify_receipt.py [receipt_file.json] [--checkpoint <hex>]
                                  [--trust-material-complete] [--emit-result]
-                                 [--receipt-public-key <hex>]
+                                 [--receipt-public-key <hex> | --receipt-keyring <path>]
+
+`--receipt-keyring <path>` takes the operator's full key history (its
+/.well-known/actaseal-keys.json) and checks the receipt against the key
+its own key_id names. The result names that key_id with one of
+RECEIPT_KEY_CURRENT, RECEIPT_KEY_ROTATED_OUT (genuine, signed under a
+retired key), RECEIPT_KEY_UNKNOWN (verdict NOT_EVALUATED; REFUSED_BY_POLICY
+under --trust-material-complete), RECEIPT_SIGNATURE_INVALID or
+RECEIPT_KEY_REVOKED, and --emit-result adds a `receipt_key` member
+{key_id, status}.
 
 `--receipt-public-key <hex>` pins the operator's published signing key:
 the document's receipt_public_key_hex must equal it (RECEIPT_KEY_NOT_TRUSTED
@@ -293,6 +302,51 @@ def verify_receipt_key_binding(receipt, public_key_hex, failures, pinned_public_
                 "RECEIPT_KEY_NOT_TRUSTED: document declares receipt key %s, --receipt-public-key is %s"
                 % (public_key_hex, pinned_public_key_hex)
             )
+
+
+def load_receipt_keyring(path):
+    # The operator's /.well-known/actaseal-keys.json: every key_id, current
+    # and historical, revoked flagged rather than omitted.
+    from pathlib import Path
+
+    document = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(document, dict) or not isinstance(document.get("keys"), list):
+        raise ValueError("expected an object with a 'keys' list (actaseal-keys.v1)")
+    keyring = {}
+    for entry in document["keys"]:
+        if not isinstance(entry, dict) or not entry.get("kid") or not entry.get("public_key_hex"):
+            raise ValueError("every key entry needs 'kid' and 'public_key_hex'")
+        keyring[str(entry["kid"])] = entry
+    return keyring
+
+
+def classify_receipt_key(receipt, keyring, signature_ok, failures):
+    """With a keyring, a receipt is checked against the key its own key_id
+    names, never the key the document declares. A genuine receipt under a
+    rotated-out key and a forged one must never share an outcome."""
+    kid = receipt.get("key_id")
+    entry = keyring.get(str(kid)) if kid else None
+    if entry is None:
+        failures.append(
+            "RECEIPT_KEY_UNKNOWN: receipt was signed under key_id %r, which is not in the supplied "
+            "--receipt-keyring; get that key from the operator to check this receipt" % kid
+        )
+        return "RECEIPT_KEY_UNKNOWN"
+    if not signature_ok:
+        failures.append(
+            "RECEIPT_SIGNATURE_INVALID: receipt does not verify under key_id %r from --receipt-keyring "
+            "(tampered, or signed by a different key)" % kid
+        )
+        return "RECEIPT_SIGNATURE_INVALID"
+    if entry.get("revoked"):
+        failures.append(
+            "RECEIPT_KEY_REVOKED: receipt verifies under key_id %r, but that key was revoked at %s (%s)"
+            % (kid, entry.get("revoked_at"), entry.get("revoked_reason"))
+        )
+        return "RECEIPT_KEY_REVOKED"
+    if entry.get("active"):
+        return "RECEIPT_KEY_CURRENT"
+    return "RECEIPT_KEY_ROTATED_OUT"
 
 
 def _chain_hashes(ledger_slice, failures):
@@ -641,6 +695,33 @@ def main(argv):
             return 2
         args = args[:flag_index] + args[flag_index + 2 :]
 
+    receipt_keyring = None
+    if "--receipt-keyring" in args:
+        flag_index = args.index("--receipt-keyring")
+        try:
+            keyring_path = args[flag_index + 1]
+        except IndexError:
+            keyring_path = None
+        problem = None
+        if keyring_path is None:
+            problem = "--receipt-keyring requires a path"
+        elif pinned_public_key_hex is not None:
+            problem = "pass either --receipt-keyring or --receipt-public-key, not both"
+        else:
+            try:
+                receipt_keyring = load_receipt_keyring(keyring_path)
+            except (OSError, ValueError) as exc:
+                problem = "unreadable --receipt-keyring %s: %s" % (keyring_path, exc)
+        if problem:
+            print("FAIL")
+            print("  MALFORMED_INPUT: " + problem)
+            _print_structured_result(emit_result, _build_structured_result(
+                trust_material_complete=trust_material_complete, checks=[], exit_code=2,
+                failed_checks_override=[MALFORMED_INPUT_CHECK],
+            ))
+            return 2
+        args = args[:flag_index] + args[flag_index + 2 :]
+
     try:
         if args:
             from pathlib import Path
@@ -711,7 +792,13 @@ def main(argv):
     # T5: receipt_public_key_hex is required UNLESS a --checkpoint was
     # supplied -- keyless mode may have no key at all to offer.
     have_key = bool(public_key_hex) and isinstance(public_key_hex, str)
-    if not have_key and checkpoint_hash is None:
+    declared_public_key_hex = public_key_hex if have_key else None
+    if receipt_keyring is not None:
+        kid = receipt.get("key_id")
+        keyring_entry = receipt_keyring.get(str(kid)) if kid else None
+        have_key = keyring_entry is not None
+        public_key_hex = keyring_entry["public_key_hex"] if keyring_entry else None
+    if not have_key and checkpoint_hash is None and receipt_keyring is None:
         print("FAIL")
         print("  MALFORMED_INPUT: missing 'receipt_public_key_hex' field")
         _print_structured_result(emit_result, _build_structured_result(
@@ -727,7 +814,27 @@ def main(argv):
     if have_key:
         verify_signature(receipt, public_key_hex, signature_failures, crypto)
         verify_receipt_key_binding(receipt, public_key_hex, signature_failures, pinned_public_key_hex)
-    signature_verified = signature_attempted and not signature_failures
+    receipt_key_status = None
+    receipt_key_failures = []
+    if receipt_keyring is not None:
+        signature_ok = signature_attempted and "RECEIPT_SIGNATURE_INVALID" not in signature_failures
+        signature_failures = [f for f in signature_failures if f != "RECEIPT_SIGNATURE_INVALID"]
+        classified = []
+        receipt_key_status = classify_receipt_key(receipt, receipt_keyring, signature_ok, classified)
+        if receipt_key_status == "RECEIPT_SIGNATURE_INVALID":
+            signature_failures.extend(classified)
+        else:
+            receipt_key_failures.extend(classified)
+        if (
+            signature_ok
+            and declared_public_key_hex
+            and declared_public_key_hex.strip().lower() != public_key_hex.strip().lower()
+        ):
+            receipt_key_failures.append(
+                "RECEIPT_DOCUMENT_KEY_MISMATCH: document declares receipt key %s, but key_id %r in "
+                "--receipt-keyring is %s" % (declared_public_key_hex, receipt.get("key_id"), public_key_hex)
+            )
+    signature_verified = signature_attempted and not signature_failures and not receipt_key_failures
     # Frozen snapshot of the RAW cryptographic outcome, taken before
     # legacy_chain_failures/material_failures (below) are allowed to
     # override signature_verified for non-cryptographic reasons. The
@@ -735,7 +842,7 @@ def main(argv):
     # -- see _build_structured_result's docstring for why that is a
     # deliberate, documented divergence from the human-readable PASS/
     # FAIL decided further down in this function.
-    raw_signature_valid = signature_verified
+    raw_signature_valid = signature_attempted and not signature_failures
 
     checkpoint_failures = []
     checkpoint_attempted = checkpoint_hash is not None
@@ -775,13 +882,17 @@ def main(argv):
         _check_entry("legacy_chain", legacy_chain_attempted, legacy_chain_failures),
         _material_check_entry(material_warnings, material_failures),
     ]
+    if receipt_key_status is not None:
+        checks.append(_check_entry("receipt_key", True, receipt_key_failures))
+        if receipt_key_status == "RECEIPT_KEY_REVOKED":
+            checkpoint_verified = False
 
     def _result_for(exit_code):
         # Built fresh at each return site with the REAL exit code that
         # site is about to return, rather than computed once and reused
         # across branches with different codes -- outcome/exit_code must
         # never drift from what main() actually returns.
-        return _build_structured_result(
+        result = _build_structured_result(
             trust_material_complete=trust_material_complete,
             checks=checks,
             exit_code=exit_code,
@@ -789,6 +900,14 @@ def main(argv):
             signature_attempted=signature_attempted,
             raw_checkpoint_valid=raw_checkpoint_valid,
         )
+        if receipt_key_status is not None:
+            result["receipt_key"] = {"key_id": receipt.get("key_id"), "status": receipt_key_status}
+        return result
+
+    def _print_receipt_key_status():
+        if receipt_key_status is not None:
+            print("  %s: receipt signed under key_id %r, checked against --receipt-keyring"
+                  % (receipt_key_status, receipt.get("key_id")))
 
     if signature_verified:
         # Strongest available verdict: a real signature check passed.
@@ -796,7 +915,9 @@ def main(argv):
         print("PASS")
         print("  verdict: %s" % receipt.get("decision"))
         print("  mode: SIGNATURE_VERIFIED")
-        if pinned_public_key_hex is not None:
+        if receipt_key_status is not None:
+            _print_receipt_key_status()
+        elif pinned_public_key_hex is not None:
             print("  receipt key matches --receipt-public-key (checked against the key you supplied)")
         else:
             print("  receipt key NOT checked against an independent key (no --receipt-public-key given); "
@@ -815,6 +936,7 @@ def main(argv):
         print("PASS")
         print("  verdict: %s" % receipt.get("decision"))
         print("  mode: CHAIN_VERIFIED_KEY_UNKNOWN")
+        _print_receipt_key_status()
         for warning in material_warnings:
             print("  WARNING: " + warning)
         _print_structured_result(emit_result, _result_for(0))
@@ -823,6 +945,8 @@ def main(argv):
     print("FAIL")
     print("  verdict: %s" % receipt.get("decision"))
     for failure in signature_failures:
+        print("  " + failure)
+    for failure in receipt_key_failures:
         print("  " + failure)
     for failure in checkpoint_failures:
         print("  " + failure)
