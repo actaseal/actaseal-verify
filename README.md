@@ -1,6 +1,6 @@
 # actaseal-verify
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23309308.svg)](https://doi.org/10.5281/zenodo.23309308)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23309307.svg)](https://doi.org/10.5281/zenodo.23309307)
 
 Verify an ActaSeal dispute evidence packet yourself, in about 60 seconds,
 without installing ActaSeal, without a network call, and without trusting
@@ -26,7 +26,7 @@ unzip your-packet.zip -d packet
 python verify.py packet
 ```
 
-(Or `pip install .` from this repo, then `python -m verify packet`.)
+(Or `pip install actaseal-verify`, then `python -m verify packet`.)
 
 Exit code `0` and `VERIFIED: ...` means every check above passed. Exit
 code `1` prints exactly which check failed and why -- nothing is silently
@@ -334,4 +334,6 @@ Reference verifier and conformance vectors for
 [draft-xg-payment-dispute-profile-00](https://datatracker.ietf.org/doc/draft-xg-payment-dispute-profile/)
 (IETF Internet-Draft, individual submission).
 
-Archived software: [10.5281/zenodo.23309308](https://doi.org/10.5281/zenodo.23309308)
+Archived software, all versions: [10.5281/zenodo.23309307](https://doi.org/10.5281/zenodo.23309307)
+(resolves to the latest archived version; each version also has its own DOI
+there). Citation metadata: [CITATION.cff](CITATION.cff).

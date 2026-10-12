@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+type: software
+title: "actaseal-verify: reference verifier for draft-xg-payment-dispute-profile"
+authors:
+  - family-names: Goshi
+    given-names: Xavier
+    affiliation: ActaSeal
+    orcid: "https://orcid.org/0009-0006-0583-6968"
+license: Apache-2.0
+doi: 10.5281/zenodo.23309307
+repository-code: "https://github.com/actaseal/actaseal-verify"
+keywords:
+  - IETF
+  - SCITT
+  - dispute evidence
+  - AI agents
+  - signed receipts
+  - x402
+references:
+  - type: standard
+    title: "draft-xg-payment-dispute-profile"
+    url: "https://datatracker.ietf.org/doc/draft-xg-payment-dispute-profile/"
