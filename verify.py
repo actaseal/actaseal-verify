@@ -8,10 +8,10 @@ the Python standard library plus the 'cryptography' package (Ed25519).
 
 Dual-version ledger_root support: this verifier declares which
 ledger_root_hash algorithm versions it can check via
-VERIFIER_SUPPORTS_ROOT_VERSIONS below. actaseal/dispute/verifier_gate.py
-in the private actaseal repo reads this exact marker to decide whether a
-v2 root may be emitted into a third-party-verified artifact at all --
-keep both sides of this in sync (see VERIFIER_SYNC.md).
+VERIFIER_SUPPORTS_ROOT_VERSIONS below. A packet producer reads this exact
+marker to decide whether a v2 root may be emitted into a
+third-party-verified artifact at all, so its name and meaning are part
+of this file's contract.
 
 Checks, all of which must hold:
 - every ledger event's payload_hash, event_id, and event_hash recompute
@@ -55,14 +55,12 @@ Usage: python verify.py [packet_dir_or_zip] [--anchors PATH]
   [--archive-export] [--tsa-ca-cert PATH ...] [--sth-public-key HEX]
   [--receipt-public-key HEX | --receipt-keyring PATH]
   packet_dir_or_zip accepts EITHER a .zip packet (extracted into a fresh
-  temp directory automatically, with the same zip-slip/decompression-
-  bomb/symlink-member protections actaseal.dispute.safe_zip applies in
-  the private repo) OR an already-extracted directory -- and defaults to
+  temp directory automatically, with zip-slip, decompression-bomb and
+  symlink-member protections) OR an already-extracted directory -- and defaults to
   this script's own directory if omitted. --anchors is optional: when given, also
   confirms this packet's ledger_root_hash was witnessed by a successful
   entry in the named anchor log (a jsonl file of transparency-anchor
-  records, see actaseal.ledger_anchor / scripts/publish_anchor.py in the
-  private ActaSeal repo).
+  records published by the packet's producer).
 
   Which mode runs is detected automatically from packet_dir's own
   manifest.json (its schema_version names which artifact type it is) --
@@ -84,8 +82,8 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-# Receipt signature algorithms this verifier knows how to check. Must stay
-# in lock-step with actaseal.signing.ALGORITHM_*. The Ed25519/ECDSA
+# Receipt signature algorithms this verifier knows how to check. These
+# names are the values a receipt's `algorithm` field carries. The Ed25519/ECDSA
 # branches use only the 'cryptography' package this script already
 # requires (see module docstring). The ML-DSA / hybrid branches below
 # need the optional 'oqs' package (liboqs-python) -- lazily imported only
@@ -96,7 +94,7 @@ ALGORITHM_ED25519 = "ed25519"
 ALGORITHM_ECDSA_P256_SHA256 = "ecdsa-p256-sha256"
 ALGORITHM_ML_DSA_65 = "ml-dsa-65"
 ALGORITHM_ML_DSA_87 = "ml-dsa-87"
-# Hybrid classical+PQ (ONESHOT-MONEY T2, ActaSeal private repo): signature
+# Hybrid classical+PQ: signature
 # and public_key_hex are each this verifier's own raw-bytes hex, one layer
 # outside a "<ed25519_hex>.<ml_dsa_65_hex>" ASCII-encoded pair -- PASS
 # requires BOTH halves to verify independently. Stripping the PQ half to
@@ -106,14 +104,14 @@ ALGORITHM_ML_DSA_87 = "ml-dsa-87"
 ALGORITHM_HYBRID_ED25519_ML_DSA_65 = "hybrid-ed25519-ml-dsa-65"
 HYBRID_PART_SEPARATOR = "."
 
-# Continuity-checkpoint failure codes (T8, ONESHOT-4 batch 3). Must stay
-# in lock-step with actaseal.anchoring's constants of the same names.
+# Continuity-checkpoint failure codes. These names are part of this
+# file's output contract.
 ANCHOR_INCLUSION_PROOF_INVALID = "ANCHOR_INCLUSION_PROOF_INVALID"
 ANCHOR_CONSISTENCY_PROOF_INVALID = "ANCHOR_CONSISTENCY_PROOF_INVALID"
 ANCHOR_CHECKPOINT_MISMATCH = "ANCHOR_CHECKPOINT_MISMATCH"
 STH_SIGNATURE_INVALID = "STH_SIGNATURE_INVALID"
 
-# ATTESTATION-LIVE Task 4: RFC 3161 token + SCITT (RFC 9943) receipt
+# RFC 3161 token + SCITT (RFC 9943) receipt
 # verification, additive to this file's existing dispute-packet checks
 # above -- used by verify_archive_export below for a different artifact
 # type (an AS 1215 archive inspection pack, not a money-action dispute
@@ -126,7 +124,7 @@ TSA_TOKEN_HASH_MISMATCH = "TSA_TOKEN_HASH_MISMATCH"
 TSA_TOKEN_INVALID = "TSA_TOKEN_INVALID"
 TSA_TOKEN_NO_TRUSTED_ROOT = "TSA_TOKEN_NO_TRUSTED_ROOT"
 
-# RCA1 (ledger-root v1->v2 migration): versions this verifier can check.
+# Ledger-root v1->v2 migration: versions this verifier can check.
 # A packet declaring a version NOT in this tuple fails loudly
 # (LEDGER_ROOT_VERSION_UNKNOWN) -- never silently treated as v1 or
 # silently passed through. v1 keeps its exact byte-level meaning
@@ -137,21 +135,19 @@ VERIFIER_SUPPORTS_ROOT_VERSIONS = ("v1", "v2")
 LEDGER_ROOT_VERSION_V1 = "v1"
 LEDGER_ROOT_VERSION_UNKNOWN = "LEDGER_ROOT_VERSION_UNKNOWN"
 
-# TASK 4 (21 CFR 11.50): ApprovalResponse payload_version values this
+# 21 CFR 11.50: approval payload_version values this
 # verifier knows how to field-check for the three 11.50(a) manifestation
-# fields (signature_meaning, signer_printed_name, payload_version itself
-# -- actaseal.gateway.approvals.ApprovalResponse / gateway.runtime's
-# resolve_approval). "v1" -- the pre-11.50 shape every pre-existing
+# fields (signature_meaning, signer_printed_name, payload_version
+# itself). "v1" -- the pre-11.50 shape every pre-existing
 # approver client already signs -- carries none of these fields and is
 # never checked, same pre-migration posture as
 # VERIFIER_SUPPORTS_ROOT_VERSIONS's missing-field case. A packet
 # declaring a payload_version NOT in this tuple fails loudly
 # (APPROVAL_PAYLOAD_VERSION_UNKNOWN), never silently treated as v1 or
-# passed through unchecked. Analogous capability-declaration pattern to
-# VERIFIER_SUPPORTS_ROOT_VERSIONS above / verifier_gate.py's use of it
-# in the private repo -- the product reads THIS marker (via the private
-# repo's actaseal.dispute.verifier_gate) and does not emit an approval
-# manifestation the pinned verifier cannot check.
+# passed through unchecked. Same capability-declaration pattern as
+# VERIFIER_SUPPORTS_ROOT_VERSIONS above: a packet producer reads THIS
+# marker and does not emit an approval manifestation the pinned verifier
+# cannot check.
 VERIFIER_SUPPORTS_APPROVAL_PAYLOAD_VERSIONS = ("v1", "v2")
 APPROVAL_SIGNATURE_MEANINGS = ("approval", "review", "responsibility", "authorship")
 APPROVAL_PAYLOAD_VERSION_UNKNOWN = "APPROVAL_PAYLOAD_VERSION_UNKNOWN"
@@ -185,14 +181,9 @@ def canonical_hash(value):
 
 
 # --- safe zip extraction (a packet's most likely real-world shape is a
-# .zip someone downloaded, not an already-extracted directory) -- a
-# faithful, self-contained port of actaseal.dispute.safe_zip's checks,
-# not an import of it: this file must stay zero-ActaSeal-import so a
-# counterparty can run it without installing or trusting ActaSeal code
-# at all. Keep both in lock-step by hand; see
-# actaseal/dispute/safe_zip.py in the private repo for the source this
-# was ported from and its own test coverage
-# (tests/test_packet_zip_attack_surface_v1.py).
+# .zip someone downloaded, not an already-extracted directory).
+# Self-contained on purpose: this file imports no ActaSeal code, so a
+# counterparty can run it without installing or trusting any.
 UNSAFE_ZIP_MEMBER_NAME = "UNSAFE_ZIP_MEMBER_NAME"
 UNSAFE_ZIP_MEMBER_TYPE = "UNSAFE_ZIP_MEMBER_TYPE"
 DUPLICATE_ZIP_MEMBER = "DUPLICATE_ZIP_MEMBER"
@@ -548,8 +539,7 @@ def _node_hash(left, right):
 
 
 def _root_from_audit_path(leaf, index, tree_size, path):
-    """RFC 9162 section 2.1.3.2 inclusion-proof verification. Must stay
-    in lock-step with actaseal.anchoring._root_from_audit_path."""
+    """RFC 9162 section 2.1.3.2 inclusion-proof verification."""
     if index < 0 or index >= tree_size:
         raise ValueError("leaf index outside claimed tree size")
     fn, sn = index, tree_size - 1
@@ -580,7 +570,7 @@ def _largest_pow2_lt(n):
 
 
 def _verify_consistency_nodes(m, n, proof):
-    """Must stay in lock-step with actaseal.anchoring._verify_consistency_nodes."""
+    """RFC 9162 section 2.1.4.2 consistency-proof verification."""
     if m == n:
         h = proof[0]
         return h, h
@@ -607,8 +597,7 @@ def _sth_signing_bytes(sth):
 
 
 def _verify_sth_signature(sth, public_key_hex, crypto):
-    """Must stay in lock-step with actaseal.anchoring.verify_tree_head /
-    actaseal.receipt.verify_signature_bytes's Ed25519/ECDSA branches."""
+    """Checks a signed tree head's signature (Ed25519 or ECDSA P-256)."""
     algorithm = sth.get("algorithm") or ALGORITHM_ED25519
     try:
         data = _sth_signing_bytes(sth)
@@ -633,8 +622,7 @@ def _verify_sth_signature(sth, public_key_hex, crypto):
 
 
 def _compute_receipt_hash(receipt):
-    """Must stay in lock-step with actaseal.receipt.receipt_hash /
-    signing_bytes: sha256 over the canonical receipt payload minus
+    """The receipt hash: sha256 over the canonical receipt payload minus
     signature and tsa_anchor (the latter is stapled AFTER signing)."""
     unsigned = dict(receipt)
     unsigned.pop("signature", None)
@@ -643,7 +631,7 @@ def _compute_receipt_hash(receipt):
 
 
 def verify_continuity_checkpoint(base, receipt, failures, crypto):
-    """T8 (ONESHOT-4 batch 3): optional, additive check -- silent no-op
+    """Optional, additive check -- silent no-op
     when checkpoint.json is absent, same posture as --anchors. When a
     continuity-export bundle includes checkpoint.json (a signed
     SignedTreeHead) and inclusion_proof.json, confirms: the checkpoint's
@@ -752,16 +740,15 @@ def verify_continuity_checkpoint(base, receipt, failures, crypto):
 
 
 def verify_ledger_root_version(base, failures):
-    """Reads acquisition.json's ledger_root_version (the field name
-    actaseal's packet.py/inspection_pack.py/control_export.py all
-    write). Returns the effective version string ("v1"/"v2") for
+    """Reads acquisition.json's ledger_root_version.
+    Returns the effective version string ("v1"/"v2") for
     callers that need it (e.g. verify_ledger_head_anchor), or None if
     this packet declares an unrecognized version -- in which case a
     LEDGER_ROOT_VERSION_UNKNOWN failure is appended and the caller must
     not proceed as if a known version were in effect.
 
     Missing entirely (no acquisition.json, or acquisition.json without
-    the key) means v1: this field did not exist before RCA1, so every
+    the key) means v1: this field did not exist before the v2 root, so every
     packet built before it defaults to the version they always were --
     never a silent behavior change for old packets."""
     acquisition = _load_doc(base, "acquisition.json", "ACQUISITION_REPORT_MISSING", [])
@@ -782,12 +769,11 @@ VERIFIER_DIGEST_MALFORMED = "VERIFIER_DIGEST_MALFORMED"
 
 def verifier_body_sha256(source_bytes):
     """The verifier's own logic, hashed independent of any leading
-    '#'-prefixed lines (a shebang, or -- see
-    tools/public-release/bundle_single_file_verifier.py in the private
-    repo -- a whole provenance comment banner prepended ahead of it).
+    '#'-prefixed lines (a shebang, or a whole provenance comment banner
+    prepended ahead of it in a single-file bundled distribution).
     A '#' line is a no-op to the Python parser, so two files that agree
     on everything else are the same verifier even if one carries extra
-    header comments the other doesn't; TASK 1's digest pin is defined
+    header comments the other doesn't; the digest pin is defined
     over that shared body so the single-file bundled distribution
     (byte-different from the canonical file ONLY in its banner, per its
     own module docstring) still satisfies a manifest pinned against the
@@ -801,16 +787,16 @@ def verifier_body_sha256(source_bytes):
 
 
 def verify_offline_verifier_digest(manifest, failures):
-    """TASK 1 (pin the shipped verifier): manifest.json's "verifier_sha256"
-    is verifier_body_sha256() of the exact bytes packet.py wrote into
-    this zip as verify.py -- i.e. of THIS file's own bytes (banner
+    """Pin the shipped verifier: manifest.json's "verifier_sha256"
+    is verifier_body_sha256() of the exact bytes the producer wrote into
+    the packet as verify.py -- i.e. of THIS file's own bytes (banner
     lines aside), since this script only ever runs as that copy, the
     source template it was copied from, or the single-file bundled
     distribution, all of which share the same body. Recomputing it here
     means a tampered verify.py -- swapped for one that always prints
     VERIFIED -- is caught before its own checks are trusted.
 
-    Missing field entirely: this packet predates TASK 1 and never
+    Missing field entirely: this packet predates the pin and never
     declared a digest -- treated as pre-pin, not invalid, same posture
     as verify_ledger_root_version's missing-field case. Present but not
     a well-formed sha256 hex digest: fails loudly
@@ -887,7 +873,7 @@ def verify_authentication_docs(receipt, events, base, failures):
 
 
 def _scope_headline(scope_conformance):
-    # must stay in lock-step with actaseal.dispute.packet.scope_headline
+    # the one-line scope headline a producer writes into manifest.json
     if scope_conformance is None:
         return "not_evaluated"
     if scope_conformance.get("verdict") == "IN_SCOPE":
@@ -914,8 +900,7 @@ def verify_scope_conformance(manifest, receipt, events, failures):
             )
 
     # ledger_slice.ndjson is the CONTIGUOUS span between this action's
-    # first and last event (see actaseal.dispute.packet.
-    # extract_ledger_slice) -- by design, that span can include OTHER
+    # first and last event -- by design, that span can include OTHER
     # actions' events interleaved in between (e.g. a BREACH acknowledged
     # after a different action scope-evaluated in between). Scoping by
     # action_id here is required so a foreign ScopeEvaluated event never
@@ -995,10 +980,9 @@ def verify_approver_snapshot(manifest, receipt, events, failures):
 
 
 def verify_approval_manifestation(receipt, events, failures):
-    """TASK 4 (21 CFR 11.50): when this receipt's approval_event_hash
+    """21 CFR 11.50: when this receipt's approval_event_hash
     names an ApprovalGranted/ApprovalDenied event whose payload declares
-    payload_version "v2" (actaseal.gateway.approvals.
-    APPROVAL_PAYLOAD_VERSION_V2), the three 11.50(a) manifestation
+    payload_version "v2", the three 11.50(a) manifestation
     fields on that event -- signature_meaning, signer_printed_name,
     payload_version itself -- must all be present, signature_meaning
     must be one of the closed set the regulation's own parenthetical
@@ -1056,8 +1040,7 @@ def verify_approval_manifestation(receipt, events, failures):
 
 def verify_ledger_head_anchor(base, failures, anchors_path):
     """Given an external anchor log (a jsonl file of {root_hash,
-    anchored_at, status, ...} records -- see
-    actaseal.ledger_anchor.FileAnchorBackend / scripts/publish_anchor.py),
+    anchored_at, status, ...} records),
     confirms this packet's ledger_root_hash (acquisition.json) was
     witnessed by some successful anchor entry. Optional: only runs when
     --anchors PATH is passed on the command line -- a packet does not
@@ -1074,7 +1057,7 @@ def verify_ledger_head_anchor(base, failures, anchors_path):
     # only because it's a different algorithm's value, and vice versa.
     # Absent on either side defaults to v1, same convention as
     # verify_ledger_root_version above and AnchorRecord.root_version's
-    # own default on the actaseal side.
+    # own default on the producer's side.
     root_version = (acquisition.get("ledger_root_version") if acquisition else None) or LEDGER_ROOT_VERSION_V1
     if not root_hash:
         failures.append(
@@ -1142,7 +1125,7 @@ def verify_settlement_anchor(manifest, failures):
 
 
 def verify_rfc3161_token(token_der_hex, hash_hex, ca_cert_paths):
-    """ATTESTATION-LIVE Task 4: offline-verify an RFC 3161 (+ RFC 5816
+    """Offline-verify an RFC 3161 (+ RFC 5816
     structure) TimeStampToken against a HASH the caller supplies (never
     trusted from inside the token) and a CONFIGURABLE, multi-member root
     bundle -- a buyer's own qualified TSA, freetsa.org's, or several at
@@ -1151,14 +1134,10 @@ def verify_rfc3161_token(token_der_hex, hash_hex, ca_cert_paths):
     bundle" the task asks for -- not full PKIX path validation (see the
     limitations list below, faithfully carried over unchanged).
 
-    Faithful, standalone port of actaseal.anchor.tsa.verify_tsa_token --
-    must stay in lock-step with it; this is not a second, divergent
-    implementation, it is the SAME checks (messageImprint match, CMS
-    SignedData signature over signedAttrs, signedAttrs messageDigest
-    binding to TSTInfo, signer cert chains to a pinned CA) reproduced
-    here because this file ships with zero actaseal imports (any
-    third party can run it standalone) and the private repo's version
-    imports actaseal.airgap/actaseal.crypto_agility this file cannot.
+    The checks: messageImprint match, CMS SignedData signature over
+    signedAttrs, signedAttrs messageDigest binding to TSTInfo, signer
+    cert chains to a pinned CA. Self-contained, like the rest of this
+    file, so any third party can run it standalone.
 
     Requires 'asn1crypto' in addition to 'cryptography' -- a real, new
     dependency for THIS specific optional check (CMS/ASN.1 parsing is
@@ -1276,12 +1255,11 @@ def verify_rfc3161_token(token_der_hex, hash_hex, ca_cert_paths):
 
 
 def verify_scitt_receipt(subject_hash_hex, receipt, sth_public_key_hex, crypto):
-    """ATTESTATION-LIVE Task 4: offline-verify a SCITT (RFC 9943) Receipt
-    -- {registration_id, inclusion_proof, signed_tree_head, ...}, the
-    shape actaseal.archive.transparency_service.Receipt.to_dict() emits
+    """Offline-verify a SCITT (RFC 9943) Receipt
+    -- {registration_id, inclusion_proof, signed_tree_head, ...}
     -- against PUBLISHED ledger state (the caller fetches the current
-    SignedTreeHead + public key from GET /trust/archive-transparency-
-    sth.json, or trusts the sth embedded in the receipt itself and only
+    SignedTreeHead + public key from the operator's published
+    transparency endpoint, or trusts the sth embedded in the receipt itself and only
     checks its signature -- both are supported: this function takes
     whichever SignedTreeHead the caller wants checked against).
 
@@ -1292,8 +1270,7 @@ def verify_scitt_receipt(subject_hash_hex, receipt, sth_public_key_hex, crypto):
     is a dict with `inclusion_proof` (log_id, entry_id, leaf_hash,
     audit_path, sth_root, sth_tree_size) and `signed_tree_head` (log_id,
     tree_size, root_hash, timestamp, key_id, algorithm, signature) sub-
-    dicts, mirroring actaseal.anchoring.InclusionProof/SignedTreeHead's
-    own to_dict() shape unchanged.
+    dicts.
 
     Returns (ok, failures)."""
     failures = []
@@ -1333,17 +1310,15 @@ def verify_scitt_receipt(subject_hash_hex, receipt, sth_public_key_hex, crypto):
     return (not failures), failures
 
 
-# READINESS-AND-SHIP Task 1: verifies an AS 1215 archive engagement
-# export (actaseal.archive.inspection_pack.build_inspection_pack's
-# output -- an "inspection pack" zip is exactly this export; there is
-# no separate export format to build) standalone, with no ActaSeal
+# Verifies an AS 1215 archive engagement export (an "inspection pack"
+# zip is exactly this export; there is no separate export format)
+# standalone, with no ActaSeal
 # import, no network, and the server stopped. That export already
 # contains everything a seven-year retention holder needs: the
 # engagement's own ledger_slice.ndjson (records), archive_attestation.
 # json (the RFC 3161 token AND the SCITT transparency receipt, both
-# embedded inside its two evidence-record chains -- see
-# actaseal.archive.attestation.issue_archive_attestation), and
-# workpaper_index.json (the hash manifest). See docs/EXPORT.md.
+# embedded inside its two evidence-record chains), and
+# workpaper_index.json (the hash manifest).
 ARCHIVE_EXPORT_SCHEMA_VERSION = "inspection_pack.v1"
 
 ARCHIVE_EXPORT_MANIFEST_SCHEMA_MISMATCH = "ARCHIVE_EXPORT_MANIFEST_SCHEMA_MISMATCH"
@@ -1396,8 +1371,7 @@ def verify_archive_export_ledger_slice(manifest, events, failures):
     call into verify_events, because an inspection-pack manifest has no
     action_id to bind a single receipt to (an engagement's slice
     legitimately spans several action_ids -- its own, plus one per
-    workpaper) and a different schema_version. Must stay in lock-step
-    with actaseal.archive.inspection_pack._verify_slice_hash_chain."""
+    workpaper) and a different schema_version."""
     if manifest.get("schema_version") != ARCHIVE_EXPORT_SCHEMA_VERSION:
         failures.append(ARCHIVE_EXPORT_MANIFEST_SCHEMA_MISMATCH)
     if manifest.get("event_count") != len(events):
@@ -1430,8 +1404,7 @@ def verify_archive_export_ledger_slice(manifest, events, failures):
 
 
 def _merkle_root_from_leaves(leaves):
-    """Must stay in lock-step with actaseal.anchoring._merkle_root (the
-    Merkle Tree Hash per RFC 9162 section 2, domain-separated leaf/node
+    """The Merkle Tree Hash per RFC 9162 section 2 (domain-separated leaf/node
     hashing -- _leaf_hash/_node_hash above are already that same
     construction, reused unchanged)."""
     if not leaves:
@@ -1445,8 +1418,7 @@ def _merkle_root_from_leaves(leaves):
 
 
 def _compute_workpaper_set_hashes(workpaper_hashes):
-    """Must stay in lock-step with actaseal.archive.attestation.
-    compute_workpaper_set_hashes -- the subject an ArchiveAttestation's
+    """The subject an ArchiveAttestation's
     two evidence-record chains actually commit to: a Merkle root over
     the engagement's SORTED workpaper content hashes, itself hashed
     under sha256 (the root value itself) and sha3-256 (of the root's
@@ -1618,7 +1590,7 @@ def main(argv):
 
     if archive_export_mode:
         # A different artifact type (an AS 1215 archive engagement
-        # export -- see docs/EXPORT.md), not a money-action dispute
+        # export), not a money-action dispute
         # packet: a separate verification path, not folded into the
         # flow below, since the two share no manifest shape.
         ok, export_failures = verify_archive_export(

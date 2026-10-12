@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Opt-in wrapper around verify.py that sends a count-only telemetry
-ping after verification (PROD11l).
+ping after verification.
 
 **Deliberately NOT built into verify.py itself.** verify.py's own test
 suite asserts it makes zero network calls and has zero imports beyond

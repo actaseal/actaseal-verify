@@ -3,7 +3,7 @@
 Python standard library plus 'cryptography'. Zero dependency on any
 ActaSeal gateway/ledger/policy code -- this exists purely to give
 verify.py something real to check, and to prove the packet format is
-fully reproducible outside the private product.
+fully reproducible outside the licensed product.
 
 Run: python generate_demo_packet.py [output_dir]
 Produces two demo packets under output_dir:

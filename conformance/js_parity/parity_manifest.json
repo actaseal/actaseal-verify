@@ -5,9 +5,7 @@
   "entries": [
     {
       "verify_py_function": "verify_approval_manifestation",
-      "verify_py_failure_codes": [
-        "TASK"
-      ],
+      "verify_py_failure_codes": [],
       "js_function": null,
       "js_failure_codes": [],
       "status": "none",
@@ -158,9 +156,7 @@
     },
     {
       "verify_py_function": "verify_offline_verifier_digest",
-      "verify_py_failure_codes": [
-        "TASK"
-      ],
+      "verify_py_failure_codes": [],
       "js_function": null,
       "js_failure_codes": [],
       "status": "none",
@@ -193,9 +189,7 @@
     },
     {
       "verify_py_function": "verify_rfc3161_token",
-      "verify_py_failure_codes": [
-        "ATTESTATION"
-      ],
+      "verify_py_failure_codes": [],
       "js_function": null,
       "js_failure_codes": [],
       "status": "none",
@@ -205,9 +199,7 @@
     },
     {
       "verify_py_function": "verify_scitt_receipt",
-      "verify_py_failure_codes": [
-        "ATTESTATION"
-      ],
+      "verify_py_failure_codes": [],
       "js_function": null,
       "js_failure_codes": [],
       "status": "none",

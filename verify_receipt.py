@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Standalone verifier for a single ActaSeal receipt JSON.
 
-Lighter-weight sibling of offline_verifier.py: that script verifies a full
+Lighter-weight sibling of verify.py: that script verifies a full
 dispute EVIDENCE PACKET (manifest.json + receipt.json + ledger_slice.ndjson
 + FRE 901/902 authentication docs, as a directory). This script verifies
 just a RECEIPT -- no packet, no manifest, no authentication docs required.
@@ -10,9 +10,8 @@ an email, attached to a chargeback response) and wants to check it is
 genuinely signed by the claimed key, without needing the full dispute
 packet machinery.
 
-Standalone by design, same posture as offline_verifier.py: no actaseal
-imports, so this file can be copied to the public actaseal-verify repo
-unchanged. Requires only the Python standard library plus the
+Standalone by design, same posture as verify.py: no actaseal
+imports. Requires only the Python standard library plus the
 'cryptography' package (Ed25519 + ECDSA P-256/SHA-256).
 
 Input JSON shape (one object, read from a file path argument or stdin):
@@ -22,14 +21,14 @@ Input JSON shape (one object, read from a file path argument or stdin):
       "ledger_slice": [ { ...ledger event... }, ... ]   # optional
     }
 "receipt_public_key_hex" is a top-level sibling of "receipt" (not embedded
-inside it) -- same convention as offline_verifier.py's manifest.json
+inside it) -- same convention as verify.py's manifest.json
 carrying receipt_public_key_hex alongside receipt.json rather than inside
 it. Compare it out of band against the gateway operator's published key: a
 receipt re-signed end to end with a different key is internally
 consistent and will still PASS this check alone.
 
 "ledger_slice" is optional. When present, it is a list of ledger event
-dicts in the same shape as offline_verifier.py's ledger_slice.ndjson
+dicts in the same shape as verify.py's ledger_slice.ndjson
 events (each carrying event_hash / previous_event_hash / event_id /
 payload / payload_hash). When present, this script additionally checks
 the slice is an unbroken hash chain and that the receipt's
@@ -37,7 +36,7 @@ ledger_entry_hash names an event_hash present in the slice. When absent,
 this check is skipped entirely -- a bare receipt with no chain data still
 gets a full PASS on signature alone.
 
-T5: keyless / hash-linked verification mode. `--checkpoint <hex>`
+Keyless / hash-linked verification mode. `--checkpoint <hex>`
 supplies a trusted checkpoint hash OUT OF BAND (a CLI flag, never read
 from the document itself -- a checkpoint embedded in the same JSON a
 tamperer controls would prove nothing). When given, a receipt can PASS
@@ -57,9 +56,8 @@ is checked as before.
 
 The "trusted checkpoint" here is intentionally a bare hash, not a full
 transparency-log inclusion proof (e.g. a Merkle audit path against a
-published tree head) -- see actaseal.anchoring / actaseal.ledger_anchor
-for ActaSeal's actual chain-head anchoring mechanism, which is the real
-source of a checkpoint hash a caller would treat as trusted. This
+published tree head). The operator's own chain-head anchoring is the
+real source of a checkpoint hash a caller would treat as trusted. This
 script only checks the checkpoint names a hash present in the supplied
 slice; it does not itself fetch or validate any transparency log.
 
@@ -130,11 +128,11 @@ import hashlib
 import json
 import sys
 
-# Must stay in lock-step with actaseal.signing.ALGORITHM_* and
-# offline_verifier.py's copy of the same constants.
+# The values a receipt's `algorithm` field carries; the same names
+# verify.py uses.
 ALGORITHM_ED25519 = "ed25519"
 ALGORITHM_ECDSA_P256_SHA256 = "ecdsa-p256-sha256"
-# T6: recognized but OPTIONAL -- verifying this algorithm needs the
+# Recognized but OPTIONAL -- verifying this algorithm needs the
 # 'oqs' package (liboqs-python), which this standalone script does NOT
 # hard-depend on (its own docstring promises stdlib + 'cryptography'
 # only). A receipt naming this algorithm is a recognized, well-formed
@@ -142,15 +140,14 @@ ALGORITHM_ECDSA_P256_SHA256 = "ecdsa-p256-sha256"
 # fails closed with ALGORITHM_UNSUPPORTED when 'oqs' isn't importable
 # here, rather than the generic RECEIPT_SIGNATURE_ALGORITHM_UNKNOWN.
 ALGORITHM_ML_DSA_65 = "ml-dsa-65"
-# P7 (ONESHOT-PERMA): CNSA 2.0 profile, same optional-'oqs' posture as
+# CNSA 2.0 profile, same optional-'oqs' posture as
 # ALGORITHM_ML_DSA_65 immediately below.
 ALGORITHM_ML_DSA_87 = "ml-dsa-87"
-# ONESHOT-MONEY T2: hybrid classical+PQ. Signature and public key are both
+# Hybrid classical+PQ. Signature and public key are both
 # "<ed25519_hex>.<ml_dsa_65_hex>" -- PASS requires BOTH halves to verify
 # independently (stripping the PQ half to present a bare Ed25519 signature
-# must not verify as hybrid -- see actaseal.crypto.hybrid_signer, which
-# this mirrors without importing actaseal, matching this script's own
-# stdlib+cryptography(+optional oqs)-only dependency posture).
+# must not verify as hybrid), within this script's own
+# stdlib+cryptography(+optional oqs)-only dependency posture.
 ALGORITHM_HYBRID_ED25519_ML_DSA_65 = "hybrid-ed25519-ml-dsa-65"
 HYBRID_PART_SEPARATOR = "."
 
@@ -183,8 +180,7 @@ def verify_signature(receipt, public_key_hex, failures, crypto):
     signature = unsigned.pop("signature", "")
     # tsa_anchor (T1) is stapled onto a receipt AFTER signing -- the
     # signature covers signing_bytes(), which excludes it -- so it must
-    # be excluded here too, the same way "signature" itself is. Must
-    # stay in lock-step with actaseal.receipt._receipt_payload.
+    # be excluded here too, the same way "signature" itself is.
     unsigned.pop("tsa_anchor", None)
     algorithm = receipt.get("algorithm") or ALGORITHM_ED25519
     try:
@@ -230,8 +226,7 @@ def verify_signature(receipt, public_key_hex, failures, crypto):
             # signature/public_key_hex are this script's own raw-bytes
             # hex convention; the hybrid signer's "<ed>.<pq>" hex-pair
             # format lives one layer inside that, as plain ASCII bytes
-            # (must stay in lock-step with actaseal.receipt's own
-            # ALGORITHM_HYBRID_ED25519_ML_DSA_65 branch).
+            # (the hybrid algorithm's own convention).
             try:
                 dotted_signature = bytes.fromhex(signature).decode("ascii")
                 dotted_public_key = bytes.fromhex(public_key_hex).decode("ascii")
@@ -382,7 +377,7 @@ def verify_chain(receipt, ledger_slice, failures):
 
 
 def verify_checkpoint_chain(receipt, ledger_slice, checkpoint_hash, failures):
-    """T5: keyless/hash-linked verification. Like verify_chain, but also
+    """Keyless/hash-linked verification. Like verify_chain, but also
     requires the out-of-band-supplied `checkpoint_hash` to name an
     event_hash actually present in the (unbroken) slice -- the trusted
     anchor that lets this PASS stand in for a signature check. Appends
@@ -402,17 +397,14 @@ VALIDATION_MATERIAL_MISSING = "VALIDATION_MATERIAL_MISSING"
 
 
 def check_validation_material(document, warnings, failures):
-    """P3 (ONESHOT-PERMA, LTA-style embedded validation material): a
-    packet built by actaseal.dispute.packet.build_dispute_packet may
+    """LTA-style embedded validation material: a packet may
     carry a top-level "validation_material" object (signing-key/chain
     refs, key-registry snapshot, anchor certs, algorithm identifiers)
     so it verifies decades later with zero external lookups. Its
     absence is only a hard failure when the document explicitly marks
     itself as requiring it (`validation_material_required: true`,
     the posture new packets should set); older packets that predate
-    this field get a warning, never a failure -- see docs/archive/
-    lta_validation_material.md for the offline_verifier.py (pinned,
-    unmodified) gap this leaves."""
+    this field get a warning, never a failure."""
     present = document.get("validation_material") is not None
     if present:
         return
@@ -427,14 +419,12 @@ def check_validation_material(document, warnings, failures):
         warnings.append(message)
 
 
-# ONESHOT-AUDIT Task B: ARCHIVE_ATTESTATION structural verification.
+# ARCHIVE_ATTESTATION structural verification.
 #
-# Same Merkle Tree Hash per RFC 9162 §2 (hash construction unchanged
-# from RFC 6962) domain-separated leaf/node hashing as
-# actaseal.anchoring._merkle_root -- duplicated here rather than
-# imported, same standalone-script posture as everything else in this
-# file (and as offline_verifier.py's own local copy of the same
-# primitives, see its _leaf_hash/_node_hash).
+# Merkle Tree Hash per RFC 9162 §2 (hash construction unchanged from
+# RFC 6962), domain-separated leaf/node hashing. Carried here rather
+# than imported, same standalone-script posture as everything else in
+# this file (verify.py has its own copy of the same primitives).
 def _leaf_hash(data):
     return hashlib.sha256(b"\x00" + data).digest()
 
@@ -465,20 +455,17 @@ def verify_archive_attestation_document(document, failures):
     """Structural check ONLY: recomputes the workpaper-set subject hash
     from `current_workpaper_hashes` and confirms at least one chain in
     the attested EvidenceRecord still names that subject as its root --
-    the same "did the workpaper set change since archival" question
-    actaseal.archive.attestation.verify_archive_attestation answers,
-    reimplemented standalone.
+    the "did the workpaper set change since archival" question,
+    answered standalone.
 
     Deliberately NOT a full cryptographic re-verification of the TSA
-    token or the STH/inclusion-proof signature -- that requires this
-    repo's actaseal.anchor.tsa / actaseal.anchoring machinery (CA
-    cert-chain parsing, transparency-log signature checks), which this
+    token or the STH/inclusion-proof signature -- that requires CA
+    cert-chain parsing and transparency-log signature checks, which this
     lighter-weight script does not carry. A structural match here means
     "the workpaper set is unchanged from what was attested"; it does
     NOT independently confirm the attestation's own anchors are
-    genuine. For a full cryptographic check, use
-    actaseal.archive.attestation.verify_archive_attestation (or a
-    deployment's own console/API), not this script.
+    genuine. For a full cryptographic check, run verify.py with
+    --archive-export on the full export, not this script.
     """
     attestation = document.get("archive_attestation")
     current_workpaper_hashes = document.get("current_workpaper_hashes")
@@ -750,7 +737,7 @@ def main(argv):
         ))
         return 2
 
-    # ONESHOT-AUDIT Task B: a document carrying "archive_attestation" is
+    # A document carrying "archive_attestation" is
     # a different document shape entirely (no receipt, no signature) --
     # branch out to its own verdict before the receipt-required checks
     # below, which do not apply here.
@@ -767,7 +754,7 @@ def main(argv):
             print("  verdict: ARCHIVE_ATTESTATION_VERIFIED")
             print("  NOTE: structural check only -- workpaper set matches the attested subject. "
                   "Anchor cryptography (TSA/STH) not independently re-verified by this script; "
-                  "use actaseal.archive.attestation.verify_archive_attestation for that.")
+                  "run verify.py --archive-export on the full export for that.")
             _print_structured_result(emit_result, _build_structured_result(
                 trust_material_complete=trust_material_complete, checks=[], exit_code=0,
             ))
@@ -792,7 +779,7 @@ def main(argv):
             failed_checks_override=[MALFORMED_INPUT_CHECK],
         ))
         return 2
-    # T5: receipt_public_key_hex is required UNLESS a --checkpoint was
+    # receipt_public_key_hex is required UNLESS a --checkpoint was
     # supplied -- keyless mode may have no key at all to offer.
     have_key = bool(public_key_hex) and isinstance(public_key_hex, str)
     declared_public_key_hex = public_key_hex if have_key else None

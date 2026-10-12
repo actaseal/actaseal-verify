@@ -29,7 +29,7 @@ certificate must chain to a CA you pass with --tsa-ca, or to freeTSA's root
 (embedded below, SHA-256 pinned) for seals timestamped by freeTSA -- never to a
 CA path recorded inside the seal. Only the files a seal lists are checked.
 
-Must give the same results as ActaSeal's own verifier (actaseal.file_seal);
+Must give the same results as ActaSeal's own verifier;
 conformance/vectors/file_seal_v1 holds seals ActaSeal wrote and the results it
 reported, and tests/test_verify_seal_v1.py compares against them.
 """
