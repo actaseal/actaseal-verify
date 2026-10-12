@@ -269,6 +269,18 @@ button {
   margin-top: 0.5em;
 }
 button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+/* A link that is the page's main action. Fixed blue: white text on it is
+   5.2:1 in both colour schemes. */
+a.button, a.button:visited {
+  display: inline-block;
+  background: #3466d6;
+  color: #fff;
+  border-radius: 6px;
+  padding: 9px 18px;
+  font-weight: 600;
+  text-decoration: none;
+}
+a.button:hover { background: #2b57bd; }
 
 .footnote { color: var(--text-dim); font-size: 0.85em; margin-top: 1em; }
 
