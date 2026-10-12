@@ -18,7 +18,7 @@ def _text() -> str:
 def test_states_the_offer_in_one_line():
     text = _text()
     assert "Annual licence, self-hosted." in text
-    assert "From <DECIDE:price> / year" in text
+    assert "DECIDE" not in text, "a placeholder is visible on a public page"
     assert "contact us" in text.lower()
 
 
