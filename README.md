@@ -1,5 +1,7 @@
 # actaseal-verify
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23309308.svg)](https://doi.org/10.5281/zenodo.23309308)
+
 Verify an ActaSeal dispute evidence packet yourself, in about 60 seconds,
 without installing ActaSeal, without a network call, and without trusting
 us. This repo is one script (`verify.py`) plus a spec. A second script,
@@ -315,3 +317,11 @@ Apache-2.0. See [LICENSE](LICENSE).
 ## Security
 
 See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
+
+## Citation
+
+Reference verifier and conformance vectors for
+[draft-xg-payment-dispute-profile-00](https://datatracker.ietf.org/doc/draft-xg-payment-dispute-profile/)
+(IETF Internet-Draft, individual submission).
+
+Archived software: [10.5281/zenodo.23309308](https://doi.org/10.5281/zenodo.23309308)
