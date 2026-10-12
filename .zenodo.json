@@ -2,7 +2,7 @@
   "title": "actaseal-verify: reference verifier for draft-xg-payment-dispute-profile",
   "upload_type": "software",
   "creators": [{"name": "Goshi, Xavier", "affiliation": "ActaSeal", "orcid": "0009-0006-0583-6968"}],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "keywords": ["IETF", "SCITT", "dispute evidence", "AI agents", "signed receipts", "x402"],
   "related_identifiers": [{"identifier": "https://datatracker.ietf.org/doc/draft-xg-payment-dispute-profile/", "relation": "isSupplementTo", "scheme": "url"}]
 }
