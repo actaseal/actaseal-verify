@@ -629,6 +629,91 @@ def build_scitt_valid_signature_broken_chain_vector() -> None:
     assert "legacy_chain" in result["failed_checks"], result
 
 
+def _write_checkpoint_case(name: str, parts, *, args: list[str], verified: bool, must_include: list[str],
+                           must_not_include: list[str], proves: str) -> None:
+    directory = VECTORS_DIR / "packet_checkpoint" / name
+    _write_packet(directory, *parts)
+    (directory / "expected.json").write_text(
+        json.dumps(
+            {
+                "args": args,
+                "verified": verified,
+                "exit_code": 0 if verified else 1,
+                "must_include_output_substrings": must_include,
+                "must_not_include_output_substrings": must_not_include,
+                "proves": proves,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def build_packet_checkpoint_vectors() -> None:
+    """verify.py --checkpoint: the keyless packet check. Every case is a
+    packet whose chain records the receipt's own hash (the events a
+    producing gateway writes after a decision), run with a checkpoint
+    given on the command line."""
+    other_key_hex = _fixed_ed25519_key("packet-checkpoint-other").public_key().public_bytes_raw().hex()
+
+    def fresh():
+        return build_packet(anchored=False, signing_key=_fixed_ed25519_key("packet-checkpoint"), receipt_events=True)
+
+    def with_unknown_key(parts):
+        manifest = dict(parts[0], receipt_public_key_hex=other_key_hex)
+        return (manifest, *parts[1:])
+
+    parts = fresh()
+    last = parts[2][-1]["event_hash"]
+    first = parts[2][0]["event_hash"]
+
+    _write_checkpoint_case(
+        "signature_valid_with_checkpoint", parts, args=["--checkpoint", last], verified=True,
+        must_include=["receipt signature valid", "checkpoint " + last], must_not_include=["CHAIN_VERIFIED_KEY_UNKNOWN"],
+        proves="With a signature that verifies, a checkpoint in the chain at or after the receipt's ledger "
+        "entry is one more check; the ordinary signature result is reported.",
+    )
+    _write_checkpoint_case(
+        "key_unknown_valid", with_unknown_key(parts), args=["--checkpoint", last], verified=True,
+        must_include=["CHAIN_VERIFIED_KEY_UNKNOWN", "signature was NOT verified"],
+        must_not_include=["receipt signature valid"],
+        proves="The packet's declared key is not the key that signed the receipt (as after a rotation, "
+        "or when the key is simply not known). The chain is intact, the trusted checkpoint is in it "
+        "after the receipt's entry, and an event under the checkpoint records the receipt's hash: "
+        "the packet passes on the chain alone and says so.",
+    )
+    _write_checkpoint_case(
+        "checkpoint_not_in_slice", parts, args=["--checkpoint", "ab" * 32], verified=False,
+        must_include=["CHECKPOINT_NOT_IN_SLICE"], must_not_include=[],
+        proves="A checkpoint that names no event in the packet's slice fails, even though the "
+        "signature verifies: the caller asked for an anchor the packet does not contain.",
+    )
+    _write_checkpoint_case(
+        "checkpoint_before_receipt_entry", parts, args=["--checkpoint", first], verified=False,
+        must_include=["CHECKPOINT_BEFORE_RECEIPT_ENTRY"], must_not_include=[],
+        proves="A hash chain commits backwards only. A checkpoint earlier than the receipt's ledger "
+        "entry says nothing about that entry and is refused.",
+    )
+    altered = with_unknown_key(parts)
+    altered = (altered[0], dict(altered[1], decision="BLOCK"), *altered[2:])
+    _write_checkpoint_case(
+        "key_unknown_receipt_altered", altered, args=["--checkpoint", last], verified=False,
+        must_include=["CHECKPOINT_RECEIPT_NOT_COMMITTED"], must_not_include=["CHAIN_VERIFIED_KEY_UNKNOWN"],
+        proves="With no usable signature, the receipt's content is held by the hash of it that the "
+        "chain recorded. A receipt whose decision was changed no longer matches that hash and fails.",
+    )
+    never = build_packet(anchored=False, signing_key=_fixed_ed25519_key("packet-checkpoint"))
+    _write_checkpoint_case(
+        "key_unknown_receipt_hash_never_recorded", with_unknown_key(never),
+        args=["--checkpoint", never[2][-1]["event_hash"]], verified=False,
+        must_include=["CHECKPOINT_RECEIPT_NOT_COMMITTED"], must_not_include=["CHAIN_VERIFIED_KEY_UNKNOWN"],
+        proves="A chain that never recorded the receipt's hash fixes where the receipt sits but not "
+        "what it says. Without a usable signature that is not enough.",
+    )
+
+
 def write_pin() -> None:
     entries = []
     for path in sorted(VECTORS_DIR.rglob("*")):
@@ -685,6 +770,7 @@ def main() -> int:
     build_scitt_empty_trust_refused_vector()
     build_scitt_signature_invalid_vector()
     build_scitt_valid_signature_broken_chain_vector()
+    build_packet_checkpoint_vectors()
     write_pin()
     print(f"Wrote vectors to {VECTORS_DIR}")
     print(f"Pinned {PIN_FILE}")

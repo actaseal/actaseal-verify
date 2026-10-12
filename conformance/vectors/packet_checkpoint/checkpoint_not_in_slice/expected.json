@@ -1,0 +1,13 @@
+{
+  "args": [
+    "--checkpoint",
+    "abababababababababababababababababababababababababababababababab"
+  ],
+  "exit_code": 1,
+  "must_include_output_substrings": [
+    "CHECKPOINT_NOT_IN_SLICE"
+  ],
+  "must_not_include_output_substrings": [],
+  "proves": "A checkpoint that names no event in the packet's slice fails, even though the signature verifies: the caller asked for an anchor the packet does not contain.",
+  "verified": false
+}

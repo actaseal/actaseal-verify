@@ -1,0 +1,16 @@
+{
+  "args": [
+    "--checkpoint",
+    "a2f93d4c9c838ca496c403aed895a1773275e566ca3a42a581c43f6caf2f4c21"
+  ],
+  "exit_code": 0,
+  "must_include_output_substrings": [
+    "CHAIN_VERIFIED_KEY_UNKNOWN",
+    "signature was NOT verified"
+  ],
+  "must_not_include_output_substrings": [
+    "receipt signature valid"
+  ],
+  "proves": "The packet's declared key is not the key that signed the receipt (as after a rotation, or when the key is simply not known). The chain is intact, the trusted checkpoint is in it after the receipt's entry, and an event under the checkpoint records the receipt's hash: the packet passes on the chain alone and says so.",
+  "verified": true
+}

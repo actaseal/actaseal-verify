@@ -1,0 +1,15 @@
+{
+  "args": [
+    "--checkpoint",
+    "a2f93d4c9c838ca496c403aed895a1773275e566ca3a42a581c43f6caf2f4c21"
+  ],
+  "exit_code": 1,
+  "must_include_output_substrings": [
+    "CHECKPOINT_RECEIPT_NOT_COMMITTED"
+  ],
+  "must_not_include_output_substrings": [
+    "CHAIN_VERIFIED_KEY_UNKNOWN"
+  ],
+  "proves": "With no usable signature, the receipt's content is held by the hash of it that the chain recorded. A receipt whose decision was changed no longer matches that hash and fails.",
+  "verified": false
+}

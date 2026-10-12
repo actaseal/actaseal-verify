@@ -1,0 +1,1 @@
+{"action_id":"refund-demo-001","chain_start_previous_event_hash":null,"event_count":3,"receipt_public_key_hex":"3b3302625dc352ea8a73185dd2d3237eb27f84f50bca64fc8e8a18dace122c54","schema_version":"dispute_packet.v1","scope_conformance_headline":"in_scope","settlement_anchor":{"status":"SETTLEMENT_UNANCHORED"}}

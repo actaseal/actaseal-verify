@@ -233,7 +233,7 @@ network access -- it is standalone by construction (see the assertion in
 The only third-party package it needs is `cryptography`, for Ed25519/ECDSA
 signature checks. That means:
 
-- you can read the whole verifier in one sitting (~1,700 lines, no
+- you can read the whole verifier in one sitting (~1,800 lines, no
   framework, no magic) and know exactly what it checks;
 - you never run vendor code against your own systems to check evidence
   someone handed you -- it only reads files from the packet directory;
@@ -271,6 +271,16 @@ these independently re-derives from data already inside the packet:
    outcomes are `RECEIPT_KEY_CURRENT`, `RECEIPT_KEY_UNKNOWN` and
    `RECEIPT_KEY_REVOKED`; each names the `key_id`. `verify_receipt.py`
    takes the same flag.
+
+   If the key cannot be trusted or is not known at all, `verify.py`
+   also has a keyless check: `--checkpoint HEX`, the hash of a ledger
+   event you already trust, obtained out of band (never from the
+   packet). The packet passes on the chain alone, reported as
+   `CHAIN_VERIFIED_KEY_UNKNOWN` and never as a signature check, if that
+   hash is in the unbroken slice at or after the receipt's ledger entry
+   and an event under it records the receipt's own hash. Every other
+   check still runs, and a key or keyring you supply is never
+   overridden.
 3. **Receipt-to-chain binding** -- the receipt's `ledger_entry_hash` names
    a real event in the slice, for the same action, and that event's
    recorded action hash matches the receipt's.

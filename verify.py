@@ -51,9 +51,21 @@ retired key), RECEIPT_KEY_UNKNOWN, RECEIPT_SIGNATURE_INVALID or
 RECEIPT_KEY_REVOKED. A pinned current key alone cannot tell a receipt
 from before a rotation apart from a forgery.
 
+Keyless check with --checkpoint HEX: when the signing key cannot be
+trusted or is not known (rotated out, lost, never published to you),
+supply the hash of a ledger event you already trust, obtained out of
+band (for example from the operator's published anchor), never from the
+packet. The packet then passes on the chain alone, reported as
+CHAIN_VERIFIED_KEY_UNKNOWN and never as a signature check, if that hash
+is in the packet's unbroken slice at or after the receipt's own ledger
+entry AND an event under it records this receipt's hash. Every other
+check still runs. With a signature that does verify, --checkpoint is one
+more check and the ordinary result is reported. A key or keyring you
+supply is never overridden by a checkpoint.
+
 Usage: python verify.py [packet_dir_or_zip] [--anchors PATH]
   [--archive-export] [--tsa-ca-cert PATH ...] [--sth-public-key HEX]
-  [--receipt-public-key HEX | --receipt-keyring PATH]
+  [--receipt-public-key HEX | --receipt-keyring PATH] [--checkpoint HEX]
   packet_dir_or_zip accepts EITHER a .zip packet (extracted into a fresh
   temp directory automatically, with zip-slip, decompression-bomb and
   symlink-member protections) OR an already-extracted directory -- and defaults to
@@ -516,6 +528,67 @@ def verify_receipt_with_keyring(manifest, receipt, events, failures, crypto, key
             "--receipt-keyring is %s" % (manifest.get("receipt_public_key_hex"), kid, entry["public_key_hex"])
         )
     return status
+
+
+# Failures about the receipt's signature or the key it was checked
+# against. With --checkpoint, and only when the caller supplied no key of
+# their own, a trusted ledger hash may stand in for these. Nothing else
+# is ever waived.
+CHECKPOINT_CAN_STAND_IN_FOR = (
+    "RECEIPT_SIGNATURE_INVALID",
+    "RECEIPT_SIGNATURE_ALGORITHM_UNKNOWN",
+    "ALGORITHM_UNSUPPORTED",
+    "INVALID_HYBRID_FORMAT",
+    "RECEIPT_SIGNER_PUBKEY_HASH_MISMATCH",
+    "RECEIPT_KEY_UNKNOWN",
+)
+CHECKPOINT_NOT_IN_SLICE = "CHECKPOINT_NOT_IN_SLICE"
+CHECKPOINT_BEFORE_RECEIPT_ENTRY = "CHECKPOINT_BEFORE_RECEIPT_ENTRY"
+CHECKPOINT_RECEIPT_NOT_COMMITTED = "CHECKPOINT_RECEIPT_NOT_COMMITTED"
+
+
+def verify_checkpoint(receipt, manifest, events, checkpoint_hash, need_content):
+    """The --checkpoint check. `checkpoint_hash` is a ledger event hash
+    the caller trusts from outside the packet. Returns a list of
+    failures (empty when it holds).
+
+    Always: the hash must name an event in this slice, at or after the
+    receipt's own ledger entry. A hash chain commits backwards only, so
+    a checkpoint earlier than the entry says nothing about it.
+
+    With `need_content` (the signature could not be relied on): an event
+    of the same action, after the receipt's entry and at or before the
+    checkpoint, must record this receipt's own hash. Without that the
+    chain fixes where the receipt sits but not what it says."""
+    hashes = [event.get("event_hash") for event in events]
+    if checkpoint_hash not in hashes:
+        return ["%s: %s is not an event hash in this packet's ledger slice" % (CHECKPOINT_NOT_IN_SLICE, checkpoint_hash)]
+    checkpoint_index = hashes.index(checkpoint_hash)
+    entry_hash = receipt.get("ledger_entry_hash")
+    if entry_hash not in hashes:
+        return []  # reported already as RECEIPT_LEDGER_ENTRY_NOT_IN_SLICE
+    entry_index = hashes.index(entry_hash)
+    if checkpoint_index < entry_index:
+        return [
+            "%s: the checkpoint is event %d of this slice, the receipt's ledger entry is event %d -- "
+            "a checkpoint earlier than the entry does not cover it"
+            % (CHECKPOINT_BEFORE_RECEIPT_ENTRY, checkpoint_index + 1, entry_index + 1)
+        ]
+    if not need_content:
+        return []
+    own_hash = _compute_receipt_hash(receipt)
+    for event in events[entry_index : checkpoint_index + 1]:
+        payload = event.get("payload")
+        if (
+            isinstance(payload, dict)
+            and payload.get("receipt_hash") == own_hash
+            and event.get("action_id") == manifest.get("action_id")
+        ):
+            return []
+    return [
+        "%s: no event between the receipt's ledger entry and the checkpoint records this receipt's hash (%s), "
+        "so the chain does not commit to what this receipt says" % (CHECKPOINT_RECEIPT_NOT_COMMITTED, own_hash)
+    ]
 
 
 def _load_doc(base, name, missing_code, failures):
@@ -1520,6 +1593,7 @@ def main(argv):
     sth_public_key_hex = None
     receipt_public_key_pin = None
     receipt_keyring_path = None
+    checkpoint_hash = None
     args = list(argv[1:])
     while args:
         arg = args.pop(0)
@@ -1550,6 +1624,12 @@ def main(argv):
                 print("UNABLE_TO_RUN: --receipt-keyring requires a path argument")
                 return 2
             receipt_keyring_path = args.pop(0)
+        elif arg == "--checkpoint":
+            value = args.pop(0).strip().lower() if args else ""
+            if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
+                print("UNABLE_TO_RUN: --checkpoint requires a 64-character hex ledger event hash")
+                return 2
+            checkpoint_hash = value
         else:
             positional.append(arg)
 
@@ -1587,6 +1667,10 @@ def main(argv):
     # never heard of that flag still gets the right checks.
     if not archive_export_mode and detect_archive_export(base):
         archive_export_mode = True
+
+    if archive_export_mode and checkpoint_hash is not None:
+        print("UNABLE_TO_RUN: --checkpoint applies to a dispute evidence packet, not an archive export")
+        return 2
 
     if archive_export_mode:
         # A different artifact type (an AS 1215 archive engagement
@@ -1636,11 +1720,36 @@ def main(argv):
     verify_ledger_root_version(base, failures)
     verify_events(manifest, events, failures)
     receipt_key_status = None
-    if receipt_keyring is not None:
-        receipt_key_status = verify_receipt_with_keyring(manifest, receipt, events, failures, crypto, receipt_keyring)
+    keyless = False
+    if checkpoint_hash is None:
+        if receipt_keyring is not None:
+            receipt_key_status = verify_receipt_with_keyring(manifest, receipt, events, failures, crypto, receipt_keyring)
+        else:
+            verify_receipt(manifest, receipt, events, failures, crypto)
+        verify_receipt_key_binding(manifest, receipt, failures, receipt_public_key_pin)
     else:
-        verify_receipt(manifest, receipt, events, failures, crypto)
-    verify_receipt_key_binding(manifest, receipt, failures, receipt_public_key_pin)
+        # Same checks, with the ones about the signature and its key
+        # set to one side: a checkpoint may stand in for those, and for
+        # nothing else.
+        receipt_failures = []
+        if receipt_keyring is not None:
+            receipt_key_status = verify_receipt_with_keyring(
+                manifest, receipt, events, receipt_failures, crypto, receipt_keyring
+            )
+        else:
+            verify_receipt(manifest, receipt, events, receipt_failures, crypto)
+        verify_receipt_key_binding(manifest, receipt, receipt_failures, receipt_public_key_pin)
+        key_failures = [f for f in receipt_failures if f.split(":", 1)[0] in CHECKPOINT_CAN_STAND_IN_FOR]
+        failures.extend(f for f in receipt_failures if f not in key_failures)
+        caller_supplied_key = bool(receipt_public_key_pin) or receipt_keyring is not None
+        checkpoint_failures = verify_checkpoint(receipt, manifest, events, checkpoint_hash, need_content=bool(key_failures))
+        if key_failures and (caller_supplied_key or checkpoint_failures):
+            # The caller's own key says no, or the chain cannot carry
+            # it: the signature failure stands.
+            failures.extend(key_failures)
+        elif key_failures:
+            keyless = True
+        failures.extend(checkpoint_failures)
     verify_continuity_checkpoint(base, receipt, failures, crypto)
     verify_authentication_docs(receipt, events, base, failures)
     verify_scope_conformance(manifest, receipt, events, failures)
@@ -1654,9 +1763,22 @@ def main(argv):
         for failure in failures:
             print("  " + failure)
         return 1
+    if keyless:
+        print("VERIFIED (chain only): %d ledger events, chain intact, receipt recorded under the checkpoint" % len(events))
+        print("  action_id: %s" % manifest.get("action_id"))
+        print("  decision: %s (%s)" % (receipt.get("decision"), receipt.get("reason_code")))
+        print(
+            "  CHAIN_VERIFIED_KEY_UNKNOWN: the receipt signature was NOT verified (%s). This result rests on "
+            "the checkpoint you supplied, %s: it is in this packet's unbroken chain at or after the receipt's "
+            "ledger entry, and an event under it records this receipt's hash."
+            % ("; ".join(f.split(":", 1)[0] for f in key_failures), checkpoint_hash)
+        )
+        return 0
     print("VERIFIED: %d ledger events, receipt signature valid, chain intact" % len(events))
     print("  action_id: %s" % manifest.get("action_id"))
     print("  decision: %s (%s)" % (receipt.get("decision"), receipt.get("reason_code")))
+    if checkpoint_hash is not None:
+        print("  checkpoint %s is in the chain at or after this receipt's ledger entry" % checkpoint_hash)
     if receipt_key_status is not None:
         print(
             "  %s: receipt signed under key_id %r, checked against --receipt-keyring"

@@ -111,6 +111,24 @@ Three vectors for `verify_receipt.py`'s `--checkpoint` keyless/hash-linked mode
 `test_receipt_checkpoint_conformance.py`, which also asserts the three modes are
 pairwise distinct.
 
+## Packet-checkpoint vectors (`vectors/packet_checkpoint/`)
+
+`verify.py --checkpoint HEX`: the keyless check on a full packet. Each
+case is a complete packet whose chain records the receipt's own hash,
+plus an `expected.json` that also carries the command-line `args` the
+case is run with (the checkpoint is supplied out of band, so it cannot
+live in the packet's own files). Run by
+`test_packet_checkpoint_conformance.py`.
+
+| Vector | Covers |
+|---|---|
+| `signature_valid_with_checkpoint/` | Signature verifies and the checkpoint is in the chain after the receipt's entry -> ordinary `VERIFIED`, checkpoint named. |
+| `key_unknown_valid/` | The packet's declared key is not the signer's. Chain intact, checkpoint after the entry, an event under it records the receipt hash -> `VERIFIED (chain only)`, `CHAIN_VERIFIED_KEY_UNKNOWN`. |
+| `checkpoint_not_in_slice/` | The checkpoint names no event in the slice -> `CHECKPOINT_NOT_IN_SLICE`, even with a valid signature. |
+| `checkpoint_before_receipt_entry/` | The checkpoint is earlier than the receipt's ledger entry -> `CHECKPOINT_BEFORE_RECEIPT_ENTRY`. |
+| `key_unknown_receipt_altered/` | No usable signature and the receipt's decision was changed -> `CHECKPOINT_RECEIPT_NOT_COMMITTED`. |
+| `key_unknown_receipt_hash_never_recorded/` | No usable signature and the chain never recorded the receipt hash -> `CHECKPOINT_RECEIPT_NOT_COMMITTED`. |
+
 ## SCITT structured-result vectors (`vectors/receipt_scitt_result/`)
 
 Five vectors for `verify_receipt.py`'s `--emit-result` / `--trust-material-complete`

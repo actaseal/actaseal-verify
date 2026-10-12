@@ -1,0 +1,13 @@
+{
+  "args": [
+    "--checkpoint",
+    "ae4149b008f27ed499c8c69ba6b89f6a58e215f22a5ca1e4c5de1d30398b2757"
+  ],
+  "exit_code": 1,
+  "must_include_output_substrings": [
+    "CHECKPOINT_BEFORE_RECEIPT_ENTRY"
+  ],
+  "must_not_include_output_substrings": [],
+  "proves": "A hash chain commits backwards only. A checkpoint earlier than the receipt's ledger entry says nothing about that entry and is refused.",
+  "verified": false
+}

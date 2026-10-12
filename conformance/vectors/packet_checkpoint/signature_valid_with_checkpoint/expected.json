@@ -1,0 +1,16 @@
+{
+  "args": [
+    "--checkpoint",
+    "a2f93d4c9c838ca496c403aed895a1773275e566ca3a42a581c43f6caf2f4c21"
+  ],
+  "exit_code": 0,
+  "must_include_output_substrings": [
+    "receipt signature valid",
+    "checkpoint a2f93d4c9c838ca496c403aed895a1773275e566ca3a42a581c43f6caf2f4c21"
+  ],
+  "must_not_include_output_substrings": [
+    "CHAIN_VERIFIED_KEY_UNKNOWN"
+  ],
+  "proves": "With a signature that verifies, a checkpoint in the chain at or after the receipt's ledger entry is one more check; the ordinary signature result is reported.",
+  "verified": true
+}

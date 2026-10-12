@@ -1,0 +1,15 @@
+{
+  "args": [
+    "--checkpoint",
+    "073ccf8fd5149fcae2ffd8275963b9781caf60123ef474e70232781868713c73"
+  ],
+  "exit_code": 1,
+  "must_include_output_substrings": [
+    "CHECKPOINT_RECEIPT_NOT_COMMITTED"
+  ],
+  "must_not_include_output_substrings": [
+    "CHAIN_VERIFIED_KEY_UNKNOWN"
+  ],
+  "proves": "A chain that never recorded the receipt's hash fixes where the receipt sits but not what it says. Without a usable signature that is not enough.",
+  "verified": false
+}

@@ -73,13 +73,22 @@ def _append_event(events: list[dict], *, event_type, tenant_id, workspace_id, ac
     return event
 
 
-def build_packet(*, anchored: bool, signing_key: Ed25519PrivateKey | None = None) -> tuple[dict, dict, list[dict], dict, dict, dict]:
+def build_packet(
+    *, anchored: bool, signing_key: Ed25519PrivateKey | None = None, receipt_events: bool = False,
+) -> tuple[dict, dict, list[dict], dict, dict, dict]:
     """`signing_key`, if given, is used instead of minting a fresh random
     key -- for a caller (conformance/generate_vectors.py) that needs
     reproducible output across runs. Default is unchanged: a fresh
     `Ed25519PrivateKey.generate()` every call, same as before this
     parameter existed -- `python generate_demo_packet.py` and its own
-    tests are unaffected."""
+    tests are unaffected.
+
+    `receipt_events`, if True, appends ReceiptStructured and ReceiptSigned
+    events after the decision, each recording the receipt's own hash, the
+    way a producing gateway does. That is what lets `verify.py
+    --checkpoint` tie a receipt's content to the chain when its signing
+    key is not trusted. Default False: the packets this script has always
+    written are unchanged."""
     private_key = signing_key if signing_key is not None else Ed25519PrivateKey.generate()
     public_key_hex = private_key.public_key().public_bytes_raw().hex()
 
@@ -162,6 +171,26 @@ def build_packet(*, anchored: bool, signing_key: Ed25519PrivateKey | None = None
     }
     signature = private_key.sign(canonical_dumps(receipt_unsigned).encode("utf-8")).hex()
     receipt = dict(receipt_unsigned, signature=signature)
+
+    if receipt_events:
+        receipt_hash = canonical_hash(receipt_unsigned)
+        for offset, (event_type, payload) in enumerate((
+            ("ReceiptStructured", {"action_packet_hash": action_packet_hash, "receipt_hash": receipt_hash, "signed": True}),
+            ("ReceiptSigned", {"action_packet_hash": action_packet_hash, "receipt_hash": receipt_hash,
+                               "algorithm": "ed25519", "key_id": key_id, "signer_pubkey_hash": signer_pubkey_hash}),
+        )):
+            _append_event(
+                events,
+                event_type=event_type,
+                tenant_id=tenant_id,
+                workspace_id=workspace_id,
+                actor_id="gateway",
+                action_id=action_id,
+                action_type=action_type,
+                timestamp="2026-07-15T09:00:0%d+00:00" % (3 + offset),
+                payload=payload,
+                previous_event_hash=events[-1]["event_hash"],
+            )
 
     if anchored:
         anchor_content = {
