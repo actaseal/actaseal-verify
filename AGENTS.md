@@ -30,9 +30,7 @@ offline verifier for ActaSeal dispute evidence packets. See
 
 ## Before committing
 
-- Run `pytest -q` (this repo's real, complete test suite -- unlike the
-  private product repo, there is no broken-legacy-scaffold problem
-  here to work around).
+- Run `pytest -q` (this repo's complete test suite).
 - Run `python verify.py demo/demo-packet-unanchored` and
   `python verify.py demo/demo-packet-anchored` -- both must PASS.
 - If you touched `verify.py`, re-run the conformance suite

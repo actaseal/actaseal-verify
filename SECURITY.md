@@ -33,8 +33,8 @@ In scope: `verify.py`, `SPEC.md` (as the contract `verify.py` implements),
 `generate_demo_packet.py` (only insofar as a bug there could produce a
 misleadingly "valid" demo packet).
 
-Out of scope: the private ActaSeal gateway/policy/ledger product that
-produces real packets -- this repo does not contain it.
+Out of scope: the licensed ActaSeal product that produces real packets
+-- this repo does not contain it.
 
 ## Vulnerability disclosure (VEX)
 

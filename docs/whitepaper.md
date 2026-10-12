@@ -25,8 +25,7 @@ software or trusting a vendor's server, months or years later.
 Every technical claim below is demonstrable today against the public
 `actaseal-verify` repository — the verifier, the packet format, and two
 working demo packets (one with a payment-rail settlement anchor, one
-without) are all in that repo. Where a claim describes something not yet
-built, it is marked **(roadmap)**.
+without) are all in that repo.
 
 ## 2. The problem: dispute infrastructure hasn't caught up to agent payments
 
@@ -149,8 +148,8 @@ that they do. `demo-packet-unanchored` shows the other honest state: no
 settlement occurred, and the packet says so explicitly
 (`SETTLEMENT_UNANCHORED`) rather than leaving the field blank or absent.
 
-Live settlement on a production payment rail, beyond the demo construction
-in this repo, is **(roadmap)**.
+The demo packets show the shape of a settlement anchor; they do not
+record a settlement on a production payment rail.
 
 ### 4.3 Evidence-rule mapping — carefully worded
 
@@ -308,4 +307,4 @@ python verify.py demo/demo-packet-unanchored # an unsettled, in-scope decision
 ```
 
 Nothing in this document describes a capability that isn't present in
-that repository today, except where marked **(roadmap)**.
+that repository today.

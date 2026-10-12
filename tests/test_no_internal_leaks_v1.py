@@ -21,11 +21,16 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 TRACKED = set(subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.split())
 TRACKED_NAMES = {Path(p).name for p in TRACKED}
-PROSE = ["README.md", "llms.txt", "docs/whitepaper.md", "SPEC.md", "SECURITY.md"]
+PROSE = ["README.md", "llms.txt", "docs/whitepaper.md", "SPEC.md", "SECURITY.md", "AGENTS.md",
+         "CONTRIBUTING.md", "conformance/README.md", "tamper_demo/README.npm.md", ".well-known/security.txt"]
 
 PATTERNS = [
     ("internal document", re.compile(r"CLAUDE\.md|README-DEPLOY|USER_ACTIONS|STATE\.md|KNOWN_FAILURES|CAPABILITIES\.md|VERIFIER_SYNC", re.I)),
-    ("private repository", re.compile(r"private (actaseal )?repo", re.I)),
+    ("private repository", re.compile(r"private (actaseal |product )?repo|private actaseal (gateway|product)", re.I)),
+    ("product setting name", re.compile(r"\bACTASEAL_[A-Z0-9_]+\b")),
+    ("route", re.compile(r"\b(GET|POST|PUT|PATCH|DELETE)\s+/[\w{}./-]+")),
+    ("roadmap", re.compile(r"\broadmap\b|coming soon|not yet built|not yet implemented", re.I)),
+    ("admission about the product's code", re.compile(r"legacy[- ]scaffold|dead code|unenforced|not (yet )?wired|unwired", re.I)),
     ("module path", re.compile(r"\bactaseal\.(?!com\b|sdk\b|mcp\b|egg)[a-z_]+\.[a-z_]+")),
     ("tier with price", re.compile(r"\b(Foundation|Firm|Enterprise|Starter|Pro|Team)\b[^.\n]{0,80}[$₹€£]\s?\d", re.I)),
     ("price", re.compile(r"[$₹€£]\s?\d[\d,]{2,}")),
@@ -110,6 +115,10 @@ def test_the_check_itself_catches_each_kind():
         "watermark": "exports are watermarked",
         "discount terms": "an early-adopter rate",
         "company stage": "a small vendor",
+        "product setting name": "set ACTASEAL_SIGNING_KEY first",
+        "route": "call POST /gateway/preflight",
+        "roadmap": "this is (roadmap)",
+        "admission about the product's code": "no broken-legacy-scaffold problem",
         "score or percentage": "a 97% match",
     }
     for label, sample in samples.items():

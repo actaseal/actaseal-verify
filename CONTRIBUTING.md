@@ -32,8 +32,7 @@ python verify.py demo/demo-packet-anchored     # must PASS
 
 - Keep the diff focused -- one concern per PR.
 - Add a test for anything you change or add (this repo's whole test
-  suite is real and fast; there's no "broken legacy scaffold" excuse
-  to avoid here, unlike some larger codebases).
+  suite is real and fast).
 - Explain the WHY in your commit message, not just the what.
 
 ## Good first issues
