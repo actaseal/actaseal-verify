@@ -281,6 +281,7 @@ a.button, a.button:visited {
   text-decoration: none;
 }
 a.button:hover { background: #2b57bd; }
+a.button.secondary, a.button.secondary:visited { background: transparent; border: 1px solid var(--border); color: var(--text); }
 
 .footnote { color: var(--text-dim); font-size: 0.85em; margin-top: 1em; }
 

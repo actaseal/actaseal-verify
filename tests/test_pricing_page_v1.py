@@ -59,3 +59,18 @@ def test_no_company_status_disclaimers():
 def test_still_says_the_verifier_is_open():
     text = _text()
     assert "Apache License 2.0" in text
+
+
+def test_has_a_book_a_demo_action_that_is_a_plain_email_link():
+    raw = PAGE.read_text(encoding="utf-8")
+    link = re.search(r'<a[^>]+href="(mailto:[^"]+)"[^>]*>\s*Book a demo\s*</a>', raw)
+    assert link, "no 'Book a demo' link"
+    assert "@actaseal.com" in link.group(1)
+
+
+def test_loads_nothing_from_a_third_party():
+    raw = PAGE.read_text(encoding="utf-8")
+    assert "<script" not in raw.lower()
+    for url in re.findall(r'(?:src|href)="(https?://[^"]+)"', raw):
+        host = url.split("/")[2]
+        assert host in {"github.com"} or host.endswith("actaseal.com"), f"third-party reference: {url}"
