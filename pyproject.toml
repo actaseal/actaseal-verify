@@ -3,8 +3,8 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "actaseal"
-version = "1.0.0"
+name = "actaseal-verify"
+version = "0.2.2"
 description = "Standalone offline verifier for ActaSeal dispute evidence packets"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -14,15 +14,20 @@ dependencies = ["cryptography"]
 # asn1crypto is required ONLY by verify_rfc3161_token (RFC 3161 CMS/ASN.1
 # token parsing) -- the base dispute-packet verification flow (main())
 # still needs nothing beyond cryptography. Install with
-# `pip install actaseal[rfc3161]` to use that one additive check.
+# `pip install actaseal-verify[rfc3161]` to use that one additive check.
 [project.optional-dependencies]
 rfc3161 = ["asn1crypto"]
 
 [tool.setuptools]
-py-modules = ["verify", "verify_seal"]
+py-modules = ["verify", "verify_seal", "verify_receipt"]
 
 # No console_scripts entry point on purpose: verify.py's main(argv) takes an
 # argv-style list so that it stays a byte-identical copy of the file every
 # real ActaSeal packet embeds as verify.py -- adding a wrapper function here
 # would create exactly the drift this repo exists to avoid. Run it as
 # `python -m verify packet/` or `python verify.py packet/`.
+
+[project.urls]
+Homepage = "https://github.com/actaseal/actaseal-verify"
+DOI = "https://doi.org/10.5281/zenodo.23309308"
+"IETF draft" = "https://datatracker.ietf.org/doc/draft-xg-payment-dispute-profile/"
