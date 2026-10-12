@@ -6,7 +6,8 @@ import contextlib
 import io
 
 
-def run(packet_path, sth_public_key_hex=None, tsa_ca_cert_paths=(), anchors_path=None):
+def run(packet_path, sth_public_key_hex=None, tsa_ca_cert_paths=(), anchors_path=None,
+        receipt_public_key_hex=None, receipt_keyring_path=None):
     import verify
 
     argv = ["verify.py", packet_path]
@@ -16,6 +17,10 @@ def run(packet_path, sth_public_key_hex=None, tsa_ca_cert_paths=(), anchors_path
         argv += ["--tsa-ca-cert", path]
     if anchors_path:
         argv += ["--anchors", anchors_path]
+    if receipt_public_key_hex:
+        argv += ["--receipt-public-key", receipt_public_key_hex]
+    if receipt_keyring_path:
+        argv += ["--receipt-keyring", receipt_keyring_path]
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
         code = verify.main(argv)

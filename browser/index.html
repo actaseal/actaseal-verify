@@ -26,6 +26,13 @@
   .demo-row { margin: -8px 0 0; color: var(--text-dim); font-size: 14px; }
   .demo-row button { font-size: 14px; padding: 4px 12px; margin-left: 6px; }
   .mono { font-family: var(--mono); font-size: 13px; word-break: break-all; }
+  #key-status { border-radius: var(--radius); padding: 10px 12px; margin: 12px 0 0; border: 1px solid var(--border); font-weight: 600; }
+  #key-status[data-state=pinned] { border-color: var(--success-on-dim); }
+  #key-status[data-state=same-origin], #key-status[data-state=unpinned] { border-color: var(--danger-on-dim); }
+  #sameorigin-state { font-weight: 400; color: var(--text-dim); font-size: 14px; }
+  #sameorigin-state[data-state=error] { color: var(--danger-on-dim); }
+  fieldset.keys { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 14px; margin: 0; }
+  fieldset.keys legend { font-weight: 700; padding: 0 6px; }
 </style>
 </head>
 <body>
@@ -46,6 +53,19 @@
     </label>
     <p class="demo-row">No packet at hand?
       <button type="button" class="secondary" id="demo" disabled>Try the demo packet</button></p>
+    <fieldset class="keys">
+      <legend>Receipt signing key</legend>
+      <label>Operator's public key <small>recommended · hex. Get it from the operator directly, never from the packet.</small>
+        <input type="text" id="receiptkey" spellcheck="false" autocomplete="off" placeholder="64 hex characters">
+      </label>
+      <label>or the operator's keyring file <small><code>actaseal-keys.json</code>, saved from the operator's own site. Also tells a retired key from a revoked one.</small>
+        <input type="file" id="keyring" accept=".json,application/json">
+      </label>
+      <div>
+        <button type="button" class="secondary" id="sameorigin">Use the keyring this site serves</button>
+        <span id="sameorigin-state">Reads <code>/.well-known/actaseal-keys.json</code> from the site you are on. Convenient, but it is not an independent key.</span>
+      </div>
+    </fieldset>
     <label>STH public key <small>optional · hex. Get it from the issuer out of band, never from the packet itself.</small>
       <input type="text" id="sthkey" spellcheck="false" autocomplete="off" placeholder="e.g. 2faa89bacd72…">
     </label>
@@ -60,6 +80,7 @@
 
   <div id="result" class="result" hidden>
     <p id="verdict"></p>
+    <p id="key-status" role="status" hidden></p>
     <div>Equivalent command: <code id="cmd"></code></div>
     <pre id="output"></pre>
   </div>
@@ -70,6 +91,29 @@
     the <a href="https://github.com/actaseal/actaseal-verify">repository</a>, or skip this page and run
     the CLI yourself. Checks the packet cannot self-certify (the STH key, the TSA chain) stay
     unchecked unless you supply those inputs, and the output says so by name.
+  </div>
+
+  <div class="note" id="not-covered">
+    <strong>What this check does not cover.</strong>
+    <ul>
+      <li>It does not check whose key signed the receipt unless you supply that key or keyring yourself.
+        Without one, the result above says so.</li>
+      <li>It does not check the transparency-log key, the timestamp authority's certificate chain, or
+        ledger-head anchors unless you supply those inputs. The output names each one it skipped.</li>
+      <li>It does not check the page you were served. A site can serve a verifier that always says
+        yes; compare the SHA-256 above with the published file, or run the command-line verifier.</li>
+      <li>It does not say whether the decision itself was right, or whether the evidence the decision
+        relied on was true. It says the record is intact, in order, and signed by the stated key.</li>
+    </ul>
+  </div>
+
+  <div class="note" id="offline-note">
+    <strong>Run it offline.</strong> Nothing here needs this site once the files are on your machine,
+    but saving this one page is not enough: the browser needs the verifier and its runtime beside it.
+    Download the <a href="https://github.com/actaseal/actaseal-verify">repository</a>, then in that folder run
+    <code>python -m http.server 8000</code>, disconnect from the network, and open
+    <code>http://localhost:8000/browser/</code>. The result is the same, and no part of it can have
+    come from us.
   </div>
 
   <footer>
