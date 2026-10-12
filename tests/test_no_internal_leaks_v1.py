@@ -6,10 +6,10 @@ This repository is public, so its own files may be named: a path or a
 visible text of every page and on the prose documents a visitor is
 pointed at.
 
-Not covered, and known: the verifier's own source file carries comments
-and a help text that name files of the licensed product. That file's
-bytes are pinned by digest in issued packets and in release artifacts,
-so it is changed only in a deliberate verifier release, not here.
+The verifier's own source files are covered too, in full: comments,
+docstrings (which are the --help text) and every string they can print.
+They were cleaned in the 1.0.2 release, the deliberate versioned change
+their pinned digest requires.
 """
 import html
 import re
@@ -127,3 +127,59 @@ def test_the_check_itself_catches_each_kind():
     for label, sample in samples.items():
         assert dict(PATTERNS)[label].search(sample), label
     assert _exists_here("verify.py") and not _exists_here("actaseal/dispute/verifier_gate.py")
+
+
+# --- the scripts people run: comments, help text, printed strings ----------
+
+SCRIPTS = sorted(rel for rel in TRACKED if rel.endswith(".py") and "/" not in rel)
+SOURCE_PATTERNS = [
+    pattern for pattern in PATTERNS
+    if pattern[0] in {"internal document", "private repository", "module path", "product setting name", "roadmap",
+                      "admission about the product's code"}
+] + [
+    ("internal task label", re.compile(r"\b(ONESHOT|ONE-SHOT|FINAL-BATCH|READINESS-AND-SHIP|ATTESTATION-LIVE)\b|\b(PROD|HARD|PLUG|RCA)\d+\b|\bTASK \d|\bTask [A-Z0-9]\b")),
+    ("another file's name for this one", re.compile(r"offline_verifier\.py")),
+    ("kept-in-step-with pointer", re.compile(r"lock-step with actaseal", re.I)),
+]
+
+
+def test_the_scripts_are_what_this_covers():
+    assert {"verify.py", "verify_receipt.py", "verify_seal.py"} <= set(SCRIPTS)
+
+
+@pytest.mark.parametrize("rel", SCRIPTS)
+def test_script_source_names_nothing_internal(rel):
+    text = (ROOT / rel).read_text(encoding="utf-8")
+    found = []
+    for label, pattern in SOURCE_PATTERNS:
+        for match in pattern.finditer(text):
+            line = text.count("\n", 0, match.start()) + 1
+            found.append(f"{label} (line {line}): {text[max(0, match.start() - 30):match.end() + 30]!r}")
+    for match in re.finditer(r"(?<![@/.\w-])actaseal/[\w/.-]+", text):
+        if not match.group(0).startswith("actaseal/actaseal-verify") and not _exists_here(match.group(0)):
+            found.append(f"source path not in this repository: {match.group(0)!r}")
+    assert not found, "\n".join(found)
+
+
+@pytest.mark.parametrize("script", ["verify.py", "verify_receipt.py", "verify_seal.py"])
+def test_help_text_names_nothing_internal(script):
+    import sys
+
+    result = subprocess.run([sys.executable, str(ROOT / script), "--help"], capture_output=True, text=True)
+    text = result.stdout + result.stderr
+    assert text.strip()
+    found = [f"{label}: {m.group(0)!r}" for label, pattern in SOURCE_PATTERNS for m in pattern.finditer(text)]
+    assert not found, "\n".join(found)
+
+
+def test_the_source_check_catches_what_was_there_before():
+    was = [
+        "actaseal/dispute/verifier_gate.py\nin the private actaseal repo reads this exact marker",
+        "# Hybrid classical+PQ (ONESHOT-MONEY T2, ActaSeal private repo): signature",
+        "Must stay in lock-step with actaseal.anchoring._merkle_root",
+        "TASK 1 (pin the shipped verifier)",
+        "Lighter-weight sibling of offline_verifier.py",
+        "see VERIFIER_SYNC.md",
+    ]
+    for sample in was:
+        assert any(pattern.search(sample) for _label, pattern in SOURCE_PATTERNS), sample
