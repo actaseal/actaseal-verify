@@ -50,6 +50,9 @@ def _targets():
     for rel in PROSE:
         if rel in TRACKED:
             yield rel
+    for rel in sorted(TRACKED):
+        if rel.startswith("docs/release-notes/") or rel in ("CHANGELOG.md", "CITATION.cff"):
+            yield rel
 
 
 def _visible(rel: str) -> str:
