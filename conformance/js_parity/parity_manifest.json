@@ -81,6 +81,16 @@
       "status_note_derived_from": "hand-asserted"
     },
     {
+      "verify_py_function": "verify_checkpoint",
+      "verify_py_failure_codes": [],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported. verify_min.js has no equivalent of --checkpoint.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
       "verify_py_function": "verify_continuity_checkpoint",
       "verify_py_failure_codes": [
         "CHECKPOINT_DOC_MALFORMED",
@@ -188,6 +198,32 @@
       "status_note_derived_from": "hand-asserted"
     },
     {
+      "verify_py_function": "verify_receipt_key_binding",
+      "verify_py_failure_codes": [
+        "RECEIPT_KEY_NOT_TRUSTED",
+        "RECEIPT_SIGNER_PUBKEY_HASH_MISMATCH"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported. verify_min.js checks the signature against the key the packet itself supplies and nothing more: it does not compare that key with the signer hash inside the signed receipt, and has no equivalent of --receipt-public-key.",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
+      "verify_py_function": "verify_receipt_with_keyring",
+      "verify_py_failure_codes": [
+        "RECEIPT_MANIFEST_KEY_MISMATCH",
+        "RECEIPT_SIGNATURE_INVALID"
+      ],
+      "js_function": null,
+      "js_failure_codes": [],
+      "status": "none",
+      "code_sets_derived_from": "static source inspection (ast for Python, brace-matched regex for JS)",
+      "status_note": "Not ported. verify_min.js has no equivalent of --receipt-keyring (key rotation and retirement).",
+      "status_note_derived_from": "hand-asserted"
+    },
+    {
       "verify_py_function": "verify_rfc3161_token",
       "verify_py_failure_codes": [],
       "js_function": null,
@@ -244,7 +280,7 @@
   "summary": {
     "full": 1,
     "partial": 1,
-    "none": 13,
-    "total": 15
+    "none": 16,
+    "total": 18
   }
 }

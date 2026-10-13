@@ -20,17 +20,26 @@
 </p>
 
 <div class="limits-box" id="limits-box">
-  <strong>What this page checks:</strong> ledger hash-chain integrity (every event's
-  payload hash, event id, event hash, and link to the previous event) and the receipt's
-  Ed25519 signature.
-  <br><strong>What it does NOT check:</strong> ECDSA/PQ/hybrid-signed receipts, the
+  <strong>What this page checks:</strong> the manifest's schema version; that the
+  ledger slice is not empty and its event count matches the manifest; that the first
+  event links to the hash the manifest says the slice starts from; for every event,
+  that it is well-formed and that its payload hash, event id, event hash and link to
+  the previous event are right; that the manifest's action appears in the slice; the
+  receipt's Ed25519 signature, against the key the packet itself supplies; and that
+  the receipt's ledger entry is in the slice and belongs to the same action.
+  <br><strong>What it does NOT check:</strong> whether that key is really the
+  operator's (the real verifier compares it with the signer hash inside the signed
+  receipt, and with a key you pin using <code>--receipt-public-key</code>); key
+  rotation and retirement (<code>--receipt-keyring</code>); the receipt's action
+  hash against the recorded action; ECDSA/PQ/hybrid-signed receipts; the
+  <code>--checkpoint</code> mode; the
   verifier's own digest pin, the ledger's schema/root version, RFC 9162 continuity
   checkpoints, authentication-document
   evidence, scope conformance, approver-snapshot and approval-manifestation integrity,
   ledger-head transparency anchoring, settlement-anchor validity, or
   <code>--archive-export</code> mode (RFC 3161 timestamps, SCITT receipts).
-  A packet this page says is clean has only cleared two of the checks a real receipt
-  needs -- for an authoritative verdict, run the real
+  A packet this page says is clean has cleared only the checks in the first list,
+  not everything a real receipt needs -- for an authoritative verdict, run the real
   <a href="../verify.py">verify.py</a> offline. See
   <a href="../conformance/js_parity/parity_manifest.json">the parity manifest</a>
   for the full, code-derived list of what is and isn't ported.

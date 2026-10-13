@@ -36,6 +36,9 @@ CONCEPT_KEYWORDS = {
     "verify_scitt_receipt": "scitt",
     "verify_archive_export_ledger_slice": "archive-export",
     "verify_archive_export": "archive-export",
+    "verify_receipt_key_binding": "--receipt-public-key",
+    "verify_receipt_with_keyring": "--receipt-keyring",
+    "verify_checkpoint": "--checkpoint",
 }
 
 

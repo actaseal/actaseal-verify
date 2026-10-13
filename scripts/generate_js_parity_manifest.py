@@ -50,6 +50,9 @@ CODE_LITERAL_RE = re.compile(r"""["'`]([A-Z][A-Z0-9_]{2,})""")
 PY_TO_JS_FUNCTION = {
     "verify_events": "verifyEvents",
     "verify_receipt": "verifyReceipt",
+    "verify_receipt_key_binding": None,
+    "verify_receipt_with_keyring": None,
+    "verify_checkpoint": None,
     "verify_offline_verifier_digest": None,
     "verify_ledger_root_version": None,
     "verify_continuity_checkpoint": None,
@@ -76,6 +79,19 @@ HAND_ASSERTED_NOTES = {
         "RECEIPT_SIGNATURE_ALGORITHM_UNSUPPORTED_IN_DEMO instead of being "
         "evaluated) and does not port the RECEIPT_ACTION_HASH_MISMATCH "
         "check (recorded_action_hash vs receipt.action_hash)."
+    ),
+    "verify_receipt_key_binding": (
+        "Not ported. verify_min.js checks the signature against the key "
+        "the packet itself supplies and nothing more: it does not compare "
+        "that key with the signer hash inside the signed receipt, and has "
+        "no equivalent of --receipt-public-key."
+    ),
+    "verify_receipt_with_keyring": (
+        "Not ported. verify_min.js has no equivalent of --receipt-keyring "
+        "(key rotation and retirement)."
+    ),
+    "verify_checkpoint": (
+        "Not ported. verify_min.js has no equivalent of --checkpoint."
     ),
     "verify_offline_verifier_digest": (
         "Not applicable to verify_min.js by construction: this check "
@@ -125,13 +141,27 @@ def _extract_codes(source_text: str) -> set[str]:
     return codes
 
 
+class UnmappedCheck(Exception):
+    """verify.py and PY_TO_JS_FUNCTION disagree about which checks exist."""
+
+
 def _py_function_codes() -> dict[str, set[str]]:
-    tree = ast.parse(VERIFY_PY.read_text(encoding="utf-8"), filename=str(VERIFY_PY))
+    source = VERIFY_PY.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(VERIFY_PY))
     result = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name in PY_TO_JS_FUNCTION:
-            segment = ast.get_source_segment(VERIFY_PY.read_text(encoding="utf-8"), node)
-            result[node.name] = _extract_codes(segment or "")
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("verify_"):
+            result[node.name] = _extract_codes(ast.get_source_segment(source, node) or "")
+    # A check added to verify.py must be placed in the mapping by a
+    # person before a manifest is written; silently leaving it out would
+    # make the manifest, and the demo page's limits list checked against
+    # it, look complete when it is not.
+    unmapped = sorted(set(result) - set(PY_TO_JS_FUNCTION))
+    gone = sorted(set(PY_TO_JS_FUNCTION) - set(result))
+    if unmapped or gone:
+        raise UnmappedCheck(
+            f"PY_TO_JS_FUNCTION is out of date: not listed {unmapped}, no longer in verify.py {gone}"
+        )
     return result
 
 
@@ -210,7 +240,11 @@ def build_manifest() -> dict:
 
 
 def main(argv: list[str]) -> int:
-    manifest = build_manifest()
+    try:
+        manifest = build_manifest()
+    except UnmappedCheck as exc:
+        print(f"OUT OF SYNC: {exc}")
+        return 1
     rendered = json.dumps(manifest, indent=2, sort_keys=False) + "\n"
     if "--check" in argv:
         if not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != rendered:
