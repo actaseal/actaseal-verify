@@ -1,0 +1,8 @@
+{
+  "exit_code": 1,
+  "must_include_failure_substrings": [
+    "CHAIN_BROKEN"
+  ],
+  "proves": "A ledger slice where one event's previous_event_hash no longer matches the prior event's event_hash fails chain-continuity verification, even though every individual event is internally self-consistent.",
+  "verified": false
+}

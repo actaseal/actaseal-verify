@@ -1,0 +1,86 @@
+{
+  "2026-08-11-e23b40f": {
+    "commit": "e23b40f",
+    "expect": {
+      "tampered_chain": [
+        "FAIL",
+        "EVENT_ID_MISMATCH"
+      ],
+      "tampered_payload": [
+        "FAIL",
+        "PAYLOAD_HASH_MISMATCH"
+      ],
+      "valid": [
+        "PASS",
+        null
+      ],
+      "wrong_signature": [
+        "FAIL",
+        "RECEIPT_SIGNATURE_INVALID"
+      ]
+    }
+  },
+  "2026-09-30-b95f6f3": {
+    "commit": "b95f6f3",
+    "expect": {
+      "tampered_chain": [
+        "FAIL",
+        "EVENT_ID_MISMATCH"
+      ],
+      "tampered_payload": [
+        "FAIL",
+        "PAYLOAD_HASH_MISMATCH"
+      ],
+      "valid": [
+        "PASS",
+        null
+      ],
+      "wrong_signature": [
+        "FAIL",
+        "RECEIPT_SIGNATURE_INVALID"
+      ]
+    }
+  },
+  "2026-10-05-cfc2a7c": {
+    "commit": "cfc2a7c",
+    "expect": {
+      "tampered_chain": [
+        "FAIL",
+        "EVENT_ID_MISMATCH"
+      ],
+      "tampered_payload": [
+        "FAIL",
+        "PAYLOAD_HASH_MISMATCH"
+      ],
+      "valid": [
+        "PASS",
+        null
+      ],
+      "wrong_signature": [
+        "FAIL",
+        "RECEIPT_SIGNATURE_INVALID"
+      ]
+    }
+  },
+  "2026-10-11-a80a192": {
+    "commit": "a80a192",
+    "expect": {
+      "tampered_chain": [
+        "FAIL",
+        "EVENT_ID_MISMATCH"
+      ],
+      "tampered_payload": [
+        "FAIL",
+        "PAYLOAD_HASH_MISMATCH"
+      ],
+      "valid": [
+        "PASS",
+        null
+      ],
+      "wrong_signature": [
+        "FAIL",
+        "RECEIPT_SIGNATURE_INVALID"
+      ]
+    }
+  }
+}
