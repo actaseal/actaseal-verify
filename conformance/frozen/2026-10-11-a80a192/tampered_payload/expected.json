@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "must_include_failure_substrings": [
+    "PAYLOAD_HASH_MISMATCH",
+    "EVENT_ID_MISMATCH",
+    "EVENT_HASH_MISMATCH"
+  ],
+  "proves": "A ledger event whose payload was edited after the fact fails payload_hash recomputation, which cascades into event_id and event_hash for that event.",
+  "verified": false
+}

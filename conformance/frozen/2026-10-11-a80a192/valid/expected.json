@@ -1,0 +1,6 @@
+{
+  "exit_code": 0,
+  "must_include_failure_substrings": [],
+  "proves": "A well-formed packet, produced with no tampering, verifies cleanly end to end (hash chain, receipt signature, authentication docs, scope conformance, settlement anchor).",
+  "verified": true
+}
