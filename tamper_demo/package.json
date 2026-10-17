@@ -1,11 +1,12 @@
 {
   "name": "@actaseal/verify",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Minimal, zero-dependency JS/WebCrypto port of ActaSeal's offline dispute-packet verifier (chain integrity + Ed25519 receipt signature only -- see README for exact scope and what it does NOT check).",
   "main": "verify_min.js",
   "files": [
     "verify_min.js",
-    "README.npm.md"
+    "index.d.ts",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=19"
@@ -28,5 +29,19 @@
   "author": "ActaSeal",
   "publishConfig": {
     "access": "public"
+  },
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./verify_min.js",
+      "default": "./verify_min.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "test": "node --test test.js",
+    "prepublishOnly": "npm test"
   }
 }

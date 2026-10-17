@@ -44,7 +44,7 @@ python verify.py demo/demo-packet-anchored     # must PASS
    zero-dependency (stdlib `json` only).
 2. **Port one more `verify.py` check into `tamper_demo/verify_min.js`.**
    The JS port currently covers chain integrity + Ed25519 signature
-   only (see `tamper_demo/README.npm.md` for the documented scope
+   only (see `tamper_demo/README.md` for the documented scope
    gap). Porting `verify_scope_conformance` next would be a good,
    bounded next step -- match `verify.py`'s exact logic, add a Node
    test case.

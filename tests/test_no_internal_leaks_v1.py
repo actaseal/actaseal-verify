@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 TRACKED = set(subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.split())
 TRACKED_NAMES = {Path(p).name for p in TRACKED}
 PROSE = ["README.md", "llms.txt", "docs/whitepaper.md", "SPEC.md", "SECURITY.md", "AGENTS.md",
-         "CONTRIBUTING.md", "conformance/README.md", "tamper_demo/README.npm.md", ".well-known/security.txt"]
+         "CONTRIBUTING.md", "conformance/README.md", "tamper_demo/README.md", ".well-known/security.txt"]
 
 PATTERNS = [
     ("internal document", re.compile(r"CLAUDE\.md|README-DEPLOY|USER_ACTIONS|STATE\.md|KNOWN_FAILURES|CAPABILITIES\.md|VERIFIER_SYNC", re.I)),
