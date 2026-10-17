@@ -74,7 +74,7 @@ Fails the step (non-zero exit) if the packet doesn't verify.
 
 `@actaseal/verify` (`tamper_demo/`, `npm install @actaseal/verify`) is a
 minimal, zero-dependency WebCrypto port covering chain integrity and
-Ed25519 receipt signatures only -- see `tamper_demo/README.npm.md` for
+Ed25519 receipt signatures only -- see `tamper_demo/README.md` for
 its exact (reduced) scope before relying on it for anything beyond a
 quick client-side check. The real `verify.py` above is the canonical,
 full-scope verifier.
