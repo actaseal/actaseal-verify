@@ -378,6 +378,93 @@ def verify_receipt_key_binding(manifest, receipt, failures, pinned_public_key_he
             )
 
 
+# --- Ed25519 strictness ------------------------------------------------------
+# The library underneath accepts public keys and signature R values that a strict verifier must not:
+# the small-order points, a prime-order point plus a torsion point ("mixed order", L times the point is
+# not the identity), and a y coordinate >= p (a second way to write a point). Two verifiers can then
+# disagree about the same signature. Everything below is plain integer arithmetic.
+_ED_P = 2**255 - 19
+_ED_D = -121665 * pow(121666, _ED_P - 2, _ED_P) % _ED_P
+_ED_D2 = 2 * _ED_D % _ED_P
+_ED_L = 2**252 + 27742317777372353535851937790883648493
+_ED_COFACTOR_DOUBLINGS = 3  # the cofactor is 8 = 2**3
+_ED_POINT_LENGTH = 32
+_ED_SIGNATURE_LENGTH = 64
+
+
+def _ed_decode(encoded):
+    """The (x, y) of a canonical 32-byte point encoding, or None if it is not one."""
+    if len(encoded) != _ED_POINT_LENGTH:
+        return None
+    value = int.from_bytes(encoded, "little")
+    sign, y = value >> 255, value & ((1 << 255) - 1)
+    if y >= _ED_P:
+        return None
+    xx = (y * y - 1) * pow(_ED_D * y * y + 1, _ED_P - 2, _ED_P) % _ED_P
+    x = pow(xx, (_ED_P + 3) // 8, _ED_P)
+    if (x * x - xx) % _ED_P:
+        x = x * pow(2, (_ED_P - 1) // 4, _ED_P) % _ED_P
+    if (x * x - xx) % _ED_P:
+        return None
+    if x == 0 and sign == 1:
+        return None
+    if x % 2 != sign:
+        x = _ED_P - x
+    return x, y
+
+
+def _ed_add(a, b):
+    x1, y1, z1, t1 = a
+    x2, y2, z2, t2 = b
+    p = _ED_P
+    c1 = (y1 - x1) * (y2 - x2) % p
+    c2 = (y1 + x1) * (y2 + x2) % p
+    c3 = t1 * _ED_D2 * t2 % p
+    c4 = 2 * z1 * z2 % p
+    e, f, g, h = c2 - c1, c4 - c3, c4 + c3, c2 + c1
+    return e * f % p, g * h % p, f * g % p, e * h % p
+
+
+def _ed_is_identity(point):
+    return point[0] % _ED_P == 0 and (point[1] - point[2]) % _ED_P == 0
+
+
+def _ed_encoding_is_weak(encoded):
+    """True unless `encoded` is the canonical encoding of a point in the prime-order subgroup."""
+    point = _ed_decode(bytes(encoded))
+    if point is None:
+        return True
+    x, y = point
+    start = (x, y, 1, x * y % _ED_P)
+    small = start
+    for _ in range(_ED_COFACTOR_DOUBLINGS):
+        small = _ed_add(small, small)
+    if _ed_is_identity(small):
+        return True
+    acc = (0, 1, 1, 0)
+    for bit in bin(_ED_L)[2:]:
+        acc = _ed_add(acc, acc)
+        if bit == "1":
+            acc = _ed_add(acc, start)
+    return not _ed_is_identity(acc)
+
+
+_ED_WEAK_KEY_CACHE: dict[bytes, bool] = {}
+
+
+def _ed25519_verify(crypto, public_key_bytes, signature_bytes, data):
+    """Ed25519 verification that refuses a weak public key or a weak R before asking the library.
+    Raises ValueError for those (callers already turn ValueError into a failed signature)."""
+    key = bytes(public_key_bytes)
+    if key not in _ED_WEAK_KEY_CACHE:
+        _ED_WEAK_KEY_CACHE[key] = _ed_encoding_is_weak(key)
+    if _ED_WEAK_KEY_CACHE[key]:
+        raise ValueError("weak or non-canonical Ed25519 public key")
+    if len(signature_bytes) != _ED_SIGNATURE_LENGTH or _ed_encoding_is_weak(signature_bytes[:_ED_POINT_LENGTH]):
+        raise ValueError("weak or non-canonical Ed25519 signature R")
+    crypto["ed25519_public_key_cls"].from_public_bytes(key).verify(signature_bytes, data)
+
+
 def verify_receipt(manifest, receipt, events, failures, crypto):
     unsigned = dict(receipt)
     signature = unsigned.pop("signature", "")
@@ -391,8 +478,7 @@ def verify_receipt(manifest, receipt, events, failures, crypto):
         signature_bytes = bytes.fromhex(signature)
         public_key_hex = manifest["receipt_public_key_hex"]
         if algorithm == ALGORITHM_ED25519:
-            public_key = crypto["ed25519_public_key_cls"].from_public_bytes(bytes.fromhex(public_key_hex))
-            public_key.verify(signature_bytes, data)
+            _ed25519_verify(crypto, bytes.fromhex(public_key_hex), signature_bytes, data)
         elif algorithm == ALGORITHM_ECDSA_P256_SHA256:
             ecdsa_public_key = crypto["load_der_public_key"](bytes.fromhex(public_key_hex))
             ecdsa_public_key.verify(signature_bytes, data, crypto["ecdsa_sha256"])
@@ -427,8 +513,7 @@ def verify_receipt(manifest, receipt, events, failures, crypto):
                 )
                 return
             try:
-                ed_public_key = crypto["ed25519_public_key_cls"].from_public_bytes(bytes.fromhex(ed_pub_hex))
-                ed_public_key.verify(bytes.fromhex(ed_sig_hex), data)
+                _ed25519_verify(crypto, bytes.fromhex(ed_pub_hex), bytes.fromhex(ed_sig_hex), data)
             except (crypto["invalid_signature_error"], ValueError):
                 failures.append("RECEIPT_SIGNATURE_INVALID")
                 return
@@ -676,8 +761,7 @@ def _verify_sth_signature(sth, public_key_hex, crypto):
         data = _sth_signing_bytes(sth)
         signature_bytes = bytes.fromhex(sth.get("signature", ""))
         if algorithm == ALGORITHM_ED25519:
-            public_key = crypto["ed25519_public_key_cls"].from_public_bytes(bytes.fromhex(public_key_hex))
-            public_key.verify(signature_bytes, data)
+            _ed25519_verify(crypto, bytes.fromhex(public_key_hex), signature_bytes, data)
         elif algorithm == ALGORITHM_ECDSA_P256_SHA256:
             ecdsa_public_key = crypto["load_der_public_key"](bytes.fromhex(public_key_hex))
             ecdsa_public_key.verify(signature_bytes, data, crypto["ecdsa_sha256"])

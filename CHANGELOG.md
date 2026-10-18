@@ -25,6 +25,7 @@ Not yet tagged or published. See
 [docs/release-notes/1.0.2.md](docs/release-notes/1.0.2.md).
 
 - `verify.py --checkpoint HEX`: a keyless check for full packets.
+- `verify.py` refuses small-order, mixed-order and non-canonical Ed25519 public keys and signature R values by itself, before the cryptography library is asked.
 - Source comments and help text describe each check in this
   repository's own terms.
 - Conformance: new `packet_checkpoint` vectors; the pinned-digest vector
