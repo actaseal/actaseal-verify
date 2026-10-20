@@ -1,0 +1,13 @@
+# The sdist carries the verifier and its readme and licence, nothing else.
+prune tests
+prune scripts
+prune conformance
+prune browser
+prune demo
+prune tamper_demo
+prune docs
+prune .github
+prune dist
+exclude AGENTS.md CONTRIBUTING.md CHANGELOG.md CITATION.cff .zenodo.json Dockerfile action.yml generate_demo_packet.py
+exclude *.html llms.txt SPEC.md CNAME .nojekyll .gitattributes .gitignore requirements.txt
+global-exclude *.pyc __pycache__
