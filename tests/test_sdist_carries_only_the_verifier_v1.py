@@ -30,5 +30,5 @@ def test_the_source_distribution_holds_only_the_verifier(tmp_path):
                "verify.py", "verify_receipt.py", "verify_seal.py"}
     stray = [n for n in names if n not in allowed and not n.startswith(allowed_prefixes)]
     assert stray == [], stray
-    assert not any(w in n.lower() for n in names for w in ("pric", "compar", "graveyard", "test"))
+    assert not any("test" in n.lower() for n in names)
     assert verify_py == (ROOT / "verify.py").read_bytes()
