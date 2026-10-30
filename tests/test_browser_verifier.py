@@ -72,7 +72,8 @@ def test_glue_passes_optional_inputs_as_cli_flags(glue):
 
 
 def test_glue_flags_exist_in_verify_py():
-    src = (ROOT / "verify.py").read_text()
+    # glue.py drives verify.py, and verify_tenant_export.py for a share pack.
+    src = (ROOT / "verify.py").read_text() + (ROOT / "verify_tenant_export.py").read_text()
     for flag in re.findall(r'"(--[a-z-]+)"', (BROWSER / "glue.py").read_text()):
         assert '"%s"' % flag in src, flag
 

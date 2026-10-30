@@ -47,6 +47,11 @@
     inside your browser (Python compiled to WebAssembly). Same checks, same failure codes,
     same exit code as running it yourself. The packet is read on your machine and is not uploaded.
   </p>
+  <p class="lede">
+    A share pack (one refund's own events, the file a company sends the customer or seller it
+    concerns) is recognised and checked with <a href="../verify_tenant_export.py"><code>verify_tenant_export.py</code></a>,
+    the checker that ships inside every share pack. Paste the company's published key to check who sealed it.
+  </p>
 
   <p id="engine">Loading the verifier (about 16&nbsp;MB, cached after the first visit)…</p>
 
@@ -55,7 +60,8 @@
       <input type="file" id="packet" accept=".zip,application/zip">
     </label>
     <p class="demo-row">No packet at hand?
-      <button type="button" class="secondary" id="demo" disabled>Try the demo packet</button></p>
+      <button type="button" class="secondary" id="demo" disabled>Try the demo packet</button>
+      <button type="button" class="secondary" id="demo-share" disabled>Try the demo share pack</button></p>
     <fieldset class="keys">
       <legend>Receipt signing key</legend>
       <label>Operator's public key <small>recommended · hex. Get it from the operator directly, never from the packet.</small>

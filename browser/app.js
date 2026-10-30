@@ -1,5 +1,6 @@
-// Runs this site's own verify.py, unmodified, in the browser via Pyodide.
-// The packet is read locally and never sent anywhere.
+// Runs this site's own verify.py, unmodified, in the browser via Pyodide; a share pack (one
+// refund's events, sent to its customer) runs verify_tenant_export.py instead, also unmodified.
+// The file is read locally and never sent anywhere.
 import { loadPyodide } from "./runtime/pyodide.mjs";
 
 const $ = (id) => document.getElementById(id);
@@ -20,9 +21,12 @@ async function boot() {
     await py.loadPackage("cryptography", { messageCallback: () => {} });
     const src = new Uint8Array(await (await fetch("../verify.py", { cache: "no-store" })).arrayBuffer());
     verifySha = await sha256Hex(src);
+    const shareSrc = new Uint8Array(
+      await (await fetch("../verify_tenant_export.py", { cache: "no-store" })).arrayBuffer());
     const glue = await (await fetch("./glue.py", { cache: "no-store" })).text();
     py.FS.mkdirTree("/verifier");
     py.FS.writeFile("/verifier/verify.py", src);
+    py.FS.writeFile("/verifier/verify_tenant_export.py", shareSrc);
     py.FS.writeFile("/verifier/glue.py", glue);
     py.runPython("import sys; sys.path.insert(0, '/verifier'); import glue");
     $("engine").textContent = "Ready. Files are read in this browser and never uploaded.";
@@ -39,6 +43,7 @@ async function boot() {
 function sync() {
   $("run").disabled = !(py && $("packet").files.length);
   $("demo").disabled = !py;
+  $("demo-share").disabled = !py;
 }
 
 async function run(demoBytes = null) {
@@ -74,13 +79,27 @@ async function run(demoBytes = null) {
     keySource = "same-origin";
   }
 
-  const fn = py.globals.get("glue").run;
-  const res = fn(packet, key, py.toPy(certs), anchors, pastedKey, keyringPath);
+  const glue = py.globals.get("glue");
+  const kindFn = glue.kind;
+  const isShare = kindFn(packet) === "share_pack";
+  kindFn.destroy();
+  let res;
+  if (isShare) {
+    // A share pack is checked against a pasted key only; a keyring is not read for it.
+    const fn = glue.run_share_pack;
+    res = fn(packet, pastedKey);
+    fn.destroy();
+    keySource = pastedKey ? "pinned" : "unpinned";
+  } else {
+    const fn = glue.run;
+    res = fn(packet, key, py.toPy(certs), anchors, pastedKey, keyringPath);
+    fn.destroy();
+  }
   const [code, output, args] = res.toJs();
   res.destroy();
-  fn.destroy();
+  glue.destroy();
   for (const p of py.FS.readdir(work)) if (p !== "." && p !== "..") py.FS.unlink(`${work}/${p}`);
-  show(code, output, args, keySource);
+  show(code, output, args, keySource, isShare ? "verify_tenant_export.py" : "verify.py");
 }
 
 const KEY_STATUS = {
@@ -93,13 +112,13 @@ const KEY_STATUS = {
     "Paste the operator's published key, or load its keyring, to rule that out.",
 };
 
-function show(code, output, args, keySource = null) {
+function show(code, output, args, keySource = null, script = "verify.py") {
   const box = $("result");
   box.hidden = false;
   const verdict = code === 0 ? "VERIFIED" : code === 1 ? "VERIFICATION FAILED" : "UNABLE TO RUN";
   box.className = `result ${code === 0 ? "ok" : "bad"}`;
   $("verdict").textContent = `${verdict} · exit ${code}`;
-  $("cmd").textContent = `python verify.py ${args.map((a) => a.replace(/^\/work\//, "")).join(" ")}`;
+  $("cmd").textContent = `python ${script} ${args.map((a) => a.replace(/^\/work\//, "")).join(" ")}`;
   $("output").textContent = output;
   const status = $("key-status");
   status.hidden = !keySource;
@@ -133,6 +152,18 @@ $("demo").addEventListener("click", async () => {
     const bytes = new Uint8Array(await (await fetch("../demo/demo-packet-anchored.zip")).arrayBuffer());
     await run(bytes);
     $("cmd").textContent = $("cmd").textContent.replace("packet.zip", "demo-packet-anchored.zip");
+  } catch (e) {
+    show(2, `Browser error: ${e.message}`, []);
+    console.error(e);
+  }
+});
+$("demo-share").addEventListener("click", async () => {
+  try {
+    const bytes = new Uint8Array(await (await fetch("../demo/demo-share-pack.zip")).arrayBuffer());
+    // Not pinned on purpose: a key served by this site is not an independent key.
+    // demo/demo-share-pack.key holds it for anyone who wants to paste it.
+    await run(bytes);
+    $("cmd").textContent = $("cmd").textContent.replace("packet.zip", "demo-share-pack.zip");
   } catch (e) {
     show(2, `Browser error: ${e.message}`, []);
     console.error(e);
