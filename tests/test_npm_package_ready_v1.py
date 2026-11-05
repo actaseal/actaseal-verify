@@ -12,11 +12,12 @@ from pathlib import Path
 import pytest
 
 PKG = Path(__file__).resolve().parent.parent / "tamper_demo"
-pytestmark = pytest.mark.skipif(shutil.which("npm") is None, reason="npm is not installed")
+NPM = shutil.which("npm")  # npm.cmd on Windows, which subprocess cannot start by the bare name
+pytestmark = pytest.mark.skipif(NPM is None, reason="npm is not installed")
 
 
 def _pack():
-    r = subprocess.run(["npm", "pack", "--dry-run", "--json"], cwd=PKG, capture_output=True, text=True, check=True)
+    r = subprocess.run([NPM, "pack", "--dry-run", "--json"], cwd=PKG, capture_output=True, text=True, check=True)
     return json.loads(r.stdout)[0]
 
 
@@ -39,7 +40,7 @@ def test_metadata_is_complete():
 
 
 def test_npm_test_passes():
-    r = subprocess.run(["npm", "test", "--silent"], cwd=PKG, capture_output=True, text=True)
+    r = subprocess.run([NPM, "test", "--silent"], cwd=PKG, capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
 
 
