@@ -9,7 +9,9 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Pinned: pyproject declares python >=3.9, and the newer ubuntu-latest image has no Python 3.9
+    # build for setup-python ("Version 3.9 was not found in the local cache", 2026-11-05).
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: ["3.9", "3.11", "3.12"]
