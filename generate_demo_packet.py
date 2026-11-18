@@ -199,10 +199,21 @@ def build_packet(
             "settled_at": "2026-07-15T09:05:00+00:00",
             "mandate_hash": mandate_hash,
         }
+        # The receipt is signed before settlement, so the party that saw
+        # the money settle signs the anchor with its own key. Derived from
+        # the receipt key so a fixed signing_key gives byte-identical vectors.
+        settlement_key = Ed25519PrivateKey.from_private_bytes(
+            hashlib.sha256(b"actaseal-demo-settlement-key:" + private_key.private_bytes_raw()).digest()
+        )
         settlement_anchor = {
             "status": "anchored",
             "anchor": anchor_content,
             "anchor_hash": canonical_hash(anchor_content),
+            "anchor_signature": {
+                "algorithm": "ed25519",
+                "public_key_hex": settlement_key.public_key().public_bytes_raw().hex(),
+                "signature_hex": settlement_key.sign(canonical_dumps(anchor_content).encode("utf-8")).hex(),
+            },
         }
     else:
         settlement_anchor = {"status": "SETTLEMENT_UNANCHORED"}

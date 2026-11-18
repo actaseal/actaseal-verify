@@ -66,6 +66,7 @@ supply is never overridden by a checkpoint.
 Usage: python verify.py [packet_dir_or_zip] [--anchors PATH]
   [--archive-export] [--tsa-ca-cert PATH ...] [--sth-public-key HEX]
   [--receipt-public-key HEX | --receipt-keyring PATH] [--checkpoint HEX]
+  [--settlement-public-key HEX]
   packet_dir_or_zip accepts EITHER a .zip packet (extracted into a fresh
   temp directory automatically, with zip-slip, decompression-bomb and
   symlink-member protections) OR an already-extracted directory -- and defaults to
@@ -1248,17 +1249,35 @@ def verify_ledger_head_anchor(base, failures, anchors_path):
     )
 
 
-def verify_settlement_anchor(manifest, failures):
+SETTLEMENT_SIGNED_DOCS_NOTE = (
+    "NOT_COVERED_BY_SIGNATURE: acquisition.json, custody.json and authentication.json are not "
+    "signed. Only their fields cross-checked against the receipt and ledger slice are verified; "
+    "any other field (times, actors, clock source, ledger_root_hash, statements) can be edited "
+    "and the packet still verifies."
+)
+
+
+def verify_settlement_anchor(manifest, receipt, failures, crypto, settlement_key_pin=None):
     """The settlement anchor block must be present -- absence of a
     settlement is itself stated as SETTLEMENT_UNANCHORED, never silent --
-    and an anchored block's anchor_hash must recompute from its content."""
+    and an anchored block's anchor_hash must recompute from its content.
+
+    The receipt is signed before the money settles, so it cannot cover
+    the anchor. An anchored block must name the receipt's mandate_hash,
+    and may carry anchor_signature: {"algorithm": "ed25519",
+    "public_key_hex", "signature_hex"}, a signature over the canonical
+    bytes of the anchor by the party that saw settlement. Without one,
+    the anchor can be edited and the packet still verifies; that is
+    reported, never passed off as checked. Nothing in a packet can show
+    that an anchored packet was relabelled SETTLEMENT_UNANCHORED.
+    Returns notes for the VERIFIED output."""
     block = manifest.get("settlement_anchor")
     if block is None:
         failures.append(
             "SETTLEMENT_FIELD_MISSING: manifest.json carries no settlement_anchor "
             "block (even an unanchored packet must state SETTLEMENT_UNANCHORED)"
         )
-        return
+        return []
     status = block.get("status")
     if status == "SETTLEMENT_UNANCHORED":
         if set(block) != {"status"}:
@@ -1266,19 +1285,72 @@ def verify_settlement_anchor(manifest, failures):
                 "SETTLEMENT_ANCHOR_INVALID: unanchored block carries extra fields %r"
                 % sorted(set(block) - {"status"})
             )
-        return
+        if settlement_key_pin:
+            failures.append(
+                "SETTLEMENT_ANCHOR_UNSIGNED: --settlement-public-key was given but this packet "
+                "states SETTLEMENT_UNANCHORED"
+            )
+        return [
+            "SETTLEMENT_STATUS_UNSIGNED: the statement that nothing settled is not covered by any "
+            "signature; a packet whose settlement was removed this way still verifies. To rule that "
+            "out, look for a registered settlement statement for this action."
+        ]
     if status != "anchored":
         failures.append("SETTLEMENT_ANCHOR_INVALID: unknown status %r" % status)
-        return
+        return []
     anchor = block.get("anchor")
     if not isinstance(anchor, dict):
         failures.append("SETTLEMENT_ANCHOR_INVALID: anchored block has no anchor content")
-        return
+        return []
     if block.get("anchor_hash") != canonical_hash(anchor):
         failures.append(
             "SETTLEMENT_ANCHOR_HASH_MISMATCH: anchor_hash does not recompute from "
             "the anchor content in manifest.json"
         )
+    if anchor.get("mandate_hash") != receipt.get("mandate_hash"):
+        failures.append(
+            "SETTLEMENT_ANCHOR_UNLINKED: the anchor's mandate_hash does not equal the receipt's"
+        )
+    signature = block.get("anchor_signature")
+    if signature is None:
+        if settlement_key_pin:
+            failures.append(
+                "SETTLEMENT_ANCHOR_UNSIGNED: --settlement-public-key was given but the anchor "
+                "carries no anchor_signature"
+            )
+            return []
+        return [
+            "SETTLEMENT_ANCHOR_UNSIGNED: the settlement anchor carries no anchor_signature, so "
+            "no signature covers it; its content can be edited and the packet still verifies."
+        ]
+    if not isinstance(signature, dict) or signature.get("algorithm") != "ed25519":
+        failures.append("SETTLEMENT_ANCHOR_SIGNATURE_INVALID: anchor_signature is not an ed25519 signature")
+        return []
+    public_key_hex = str(signature.get("public_key_hex") or "")
+    try:
+        _ed25519_verify(
+            crypto,
+            bytes.fromhex(public_key_hex),
+            bytes.fromhex(str(signature.get("signature_hex") or "")),
+            canonical_dumps(anchor).encode("utf-8"),
+        )
+    except (crypto["invalid_signature_error"], ValueError, TypeError):
+        failures.append(
+            "SETTLEMENT_ANCHOR_SIGNATURE_INVALID: anchor_signature does not verify over the anchor"
+        )
+        return []
+    if settlement_key_pin:
+        if public_key_hex.lower() != settlement_key_pin.lower():
+            failures.append(
+                "SETTLEMENT_ANCHOR_KEY_MISMATCH: the anchor is signed with %s, not the "
+                "--settlement-public-key you supplied" % public_key_hex
+            )
+        return []
+    return [
+        "settlement anchor signature valid, but checked only against the key the packet declares "
+        "(%s); compare it with the settling party's published key out of band "
+        "(--settlement-public-key)." % public_key_hex
+    ]
 
 
 def verify_rfc3161_token(token_der_hex, hash_hex, ca_cert_paths):
@@ -1676,6 +1748,7 @@ def main(argv):
     tsa_ca_cert_paths = []
     sth_public_key_hex = None
     receipt_public_key_pin = None
+    settlement_key_pin = None
     receipt_keyring_path = None
     checkpoint_hash = None
     args = list(argv[1:])
@@ -1698,6 +1771,11 @@ def main(argv):
                 print("UNABLE_TO_RUN: --sth-public-key requires a hex-encoded public key argument")
                 return 2
             sth_public_key_hex = args.pop(0)
+        elif arg == "--settlement-public-key":
+            if not args:
+                print("UNABLE_TO_RUN: --settlement-public-key requires a hex-encoded public key argument")
+                return 2
+            settlement_key_pin = args.pop(0)
         elif arg == "--receipt-public-key":
             if not args:
                 print("UNABLE_TO_RUN: --receipt-public-key requires a hex-encoded public key argument")
@@ -1840,7 +1918,8 @@ def main(argv):
     verify_approver_snapshot(manifest, receipt, events, failures)
     verify_approval_manifestation(receipt, events, failures)
     verify_ledger_head_anchor(base, failures, anchors_path)
-    verify_settlement_anchor(manifest, failures)
+    notes = verify_settlement_anchor(manifest, receipt, failures, crypto, settlement_key_pin)
+    notes.append(SETTLEMENT_SIGNED_DOCS_NOTE)
 
     if failures:
         print("VERIFICATION FAILED")
@@ -1857,6 +1936,8 @@ def main(argv):
             "ledger entry, and an event under it records this receipt's hash."
             % ("; ".join(f.split(":", 1)[0] for f in key_failures), checkpoint_hash)
         )
+        for note in notes:
+            print("  " + note)
         return 0
     print("VERIFIED: %d ledger events, receipt signature valid, chain intact" % len(events))
     print("  action_id: %s" % manifest.get("action_id"))
@@ -1877,6 +1958,8 @@ def main(argv):
             "Compare it with the operator's published key out of band; a packet re-signed "
             "end to end with another key is internally consistent." % manifest.get("receipt_public_key_hex")
         )
+    for note in notes:
+        print("  " + note)
     return 0
 
 
