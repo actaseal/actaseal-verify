@@ -171,3 +171,97 @@ def test_inclusion_proof_naming_a_different_checkpoint_fails(tmp_path):
     result = _run_verify(packet_dir)
     assert result.returncode == 1
     assert "ANCHOR_CHECKPOINT_MISMATCH" in result.stdout
+
+
+def _run_verify_args(packet_dir: Path, *extra: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(VERIFY_PY), str(packet_dir), *extra], capture_output=True, text=True
+    )
+
+
+def _checkpoint_packet(tmp_path):
+    subprocess.run([sys.executable, str(GENERATOR), str(tmp_path)], check=True)
+    packet_dir = tmp_path / "demo-packet-unanchored"
+    receipt = json.loads((packet_dir / "receipt.json").read_text())
+    checkpoint, _ = _write_checkpoint(packet_dir, _compute_receipt_hash(receipt))
+    return packet_dir, checkpoint["sth_public_key_hex"]
+
+
+def test_unpinned_checkpoint_says_its_key_is_self_asserted(tmp_path):
+    # A forger can build their own tree and sign it with a key they ship
+    # in the same file; without a pin, VERIFIED must not read as a log check.
+    packet_dir, shipped_key = _checkpoint_packet(tmp_path)
+    result = _run_verify_args(packet_dir)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "CHECKPOINT_KEY_NOT_PINNED" in result.stdout
+    assert shipped_key in result.stdout
+
+
+def test_checkpoint_signed_by_a_key_other_than_the_pin_fails(tmp_path):
+    packet_dir, _ = _checkpoint_packet(tmp_path)
+    log_key = Ed25519PrivateKey.generate().public_key().public_bytes_raw().hex()
+    result = _run_verify_args(packet_dir, "--sth-public-key", log_key)
+    assert result.returncode == 1
+    assert "CHECKPOINT_KEY_MISMATCH" in result.stdout
+
+
+def test_checkpoint_matching_the_pin_passes_and_says_so(tmp_path):
+    packet_dir, shipped_key = _checkpoint_packet(tmp_path)
+    result = _run_verify_args(packet_dir, "--sth-public-key", shipped_key.upper())
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "CHECKPOINT_KEY_NOT_PINNED" not in result.stdout
+    assert "--sth-public-key" in result.stdout
+
+
+def test_sth_pin_without_a_checkpoint_is_not_silently_ignored(tmp_path):
+    subprocess.run([sys.executable, str(GENERATOR), str(tmp_path)], check=True)
+    packet_dir = tmp_path / "demo-packet-unanchored"
+    result = _run_verify_args(packet_dir, "--sth-public-key", "ab" * 32)
+    assert result.returncode == 1
+    assert "CHECKPOINT_MISSING" in result.stdout
+
+
+def _write_consistency(packet_dir: Path, cproof: dict) -> None:
+    (packet_dir / "consistency_proof.json").write_text(gen.canonical_dumps(cproof), encoding="utf-8")
+
+
+def test_consistency_proof_not_ending_at_the_signed_head_fails(tmp_path):
+    # Found by a fresh review on 22 Nov 2026: a self-consistent proof over
+    # a made-up tree passed with a pinned, valid checkpoint.
+    packet_dir, shipped_key = _checkpoint_packet(tmp_path)
+    _write_consistency(
+        packet_dir, {"old_tree_size": 1, "new_tree_size": 1, "old_root": "aa" * 32, "new_root": "aa" * 32, "proof": []}
+    )
+    result = _run_verify_args(packet_dir, "--sth-public-key", shipped_key)
+    assert result.returncode == 1
+    assert "CONSISTENCY_PROOF_NOT_AT_SIGNED_HEAD" in result.stdout
+
+
+def test_consistency_proof_from_empty_tree_to_other_size_fails(tmp_path):
+    packet_dir, shipped_key = _checkpoint_packet(tmp_path)
+    _write_consistency(
+        packet_dir, {"old_tree_size": 0, "new_tree_size": 999, "old_root": "bb" * 32, "new_root": "cc" * 32, "proof": []}
+    )
+    result = _run_verify_args(packet_dir, "--sth-public-key", shipped_key)
+    assert result.returncode == 1
+    assert "CONSISTENCY_PROOF_NOT_AT_SIGNED_HEAD" in result.stdout
+
+
+def test_valid_consistency_proof_names_its_unanchored_old_root(tmp_path):
+    packet_dir, shipped_key = _checkpoint_packet(tmp_path)
+    checkpoint = json.loads((packet_dir / "checkpoint.json").read_text())
+    sth = checkpoint["sth"]
+    _write_consistency(
+        packet_dir,
+        {
+            "old_tree_size": sth["tree_size"],
+            "new_tree_size": sth["tree_size"],
+            "old_root": sth["root_hash"],
+            "new_root": sth["root_hash"],
+            "proof": [],
+        },
+    )
+    result = _run_verify_args(packet_dir, "--sth-public-key", shipped_key)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "CONSISTENCY_OLD_ROOT_NOT_CHECKED" in result.stdout
+    assert sth["root_hash"] in result.stdout

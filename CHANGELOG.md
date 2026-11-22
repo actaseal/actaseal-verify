@@ -26,6 +26,7 @@ Not yet tagged or published. See
 
 - `verify.py --checkpoint HEX`: a keyless check for full packets.
 - The settlement anchor is bound: its `mandate_hash` must equal the receipt's, an `anchor_signature` is checked, `--settlement-public-key` pins its key, and what a packet alone cannot show is printed with every `VERIFIED` result.
+- A continuity checkpoint's key is pinned with `--sth-public-key` in dispute packets too; without a pin, `VERIFIED` names the self-asserted key (`CHECKPOINT_KEY_NOT_PINNED`); a consistency proof must end at the signed tree head.
 - `verify.py` refuses small-order, mixed-order and non-canonical Ed25519 public keys and signature R values by itself, before the cryptography library is asked.
 - Source comments and help text describe each check in this
   repository's own terms.

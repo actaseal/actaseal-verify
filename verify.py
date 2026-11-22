@@ -81,9 +81,11 @@ Usage: python verify.py [packet_dir_or_zip] [--anchors PATH]
   still exists for an explicit call (e.g. a script that wants to fail
   loudly if the directory turns out not to be an archive export, rather
   than silently falling back to the dispute-packet checks). When given,
-  --tsa-ca-cert/--sth-public-key apply only in archive-export mode, to
-  additionally verify the embedded RFC 3161 token / SCITT receipt
-  against a supplied trust root; both are optional even there.
+  --tsa-ca-cert applies only in archive-export mode. --sth-public-key
+  verifies the embedded SCITT receipt in archive-export mode and, in a
+  dispute packet, pins the key a continuity checkpoint (checkpoint.json)
+  must be signed with; without it that checkpoint's key is only the one
+  the packet itself carries. All are optional.
 Exit codes: 0 verified, 1 verification failed or packet unreadable,
 2 unable to run (missing 'cryptography'). Both modes use the same three
 codes.
@@ -120,6 +122,11 @@ HYBRID_PART_SEPARATOR = "."
 # Continuity-checkpoint failure codes. These names are part of this
 # file's output contract.
 ANCHOR_INCLUSION_PROOF_INVALID = "ANCHOR_INCLUSION_PROOF_INVALID"
+CHECKPOINT_MISSING = "CHECKPOINT_MISSING"
+CHECKPOINT_KEY_MISMATCH = "CHECKPOINT_KEY_MISMATCH"
+CHECKPOINT_KEY_NOT_PINNED = "CHECKPOINT_KEY_NOT_PINNED"
+CONSISTENCY_PROOF_NOT_AT_SIGNED_HEAD = "CONSISTENCY_PROOF_NOT_AT_SIGNED_HEAD"
+CONSISTENCY_OLD_ROOT_NOT_CHECKED = "CONSISTENCY_OLD_ROOT_NOT_CHECKED"
 ANCHOR_CONSISTENCY_PROOF_INVALID = "ANCHOR_CONSISTENCY_PROOF_INVALID"
 ANCHOR_CHECKPOINT_MISMATCH = "ANCHOR_CHECKPOINT_MISMATCH"
 STH_SIGNATURE_INVALID = "STH_SIGNATURE_INVALID"
@@ -788,7 +795,7 @@ def _compute_receipt_hash(receipt):
     return hashlib.sha256(canonical_dumps(unsigned).encode("utf-8")).hexdigest()
 
 
-def verify_continuity_checkpoint(base, receipt, failures, crypto):
+def verify_continuity_checkpoint(base, receipt, failures, crypto, sth_key_pin=None):
     """Optional, additive check -- silent no-op
     when checkpoint.json is absent, same posture as --anchors. When a
     continuity-export bundle includes checkpoint.json (a signed
@@ -798,18 +805,44 @@ def verify_continuity_checkpoint(base, receipt, failures, crypto):
     6962 audit-path math); and the inclusion proof's claimed
     root/tree_size actually match the signed checkpoint, not some other
     one. When consistency_proof.json is also present (bridging to an
-    older trusted checkpoint), its own math is checked too."""
+    older trusted checkpoint), its own math is checked too.
+
+    The key in checkpoint.json ships with the packet, so anyone can build
+    their own tree and sign it: only sth_key_pin (--sth-public-key, the
+    log's key obtained out of band) ties the checkpoint to a real log.
+    Returns notes for the VERIFIED output."""
+    notes = []
     checkpoint_path = base / "checkpoint.json"
     if not checkpoint_path.exists():
-        return
+        if sth_key_pin:
+            failures.append(
+                "%s: --sth-public-key was given but this packet has no checkpoint.json to check it against"
+                % CHECKPOINT_MISSING
+            )
+        return notes
     checkpoint = _load_doc(base, "checkpoint.json", "CHECKPOINT_DOC_MISSING", failures)
     if checkpoint is None:
-        return
+        return notes
     sth = checkpoint.get("sth")
     sth_public_key_hex = checkpoint.get("sth_public_key_hex")
-    if not isinstance(sth, dict) or not sth_public_key_hex:
+    if not isinstance(sth, dict) or not isinstance(sth_public_key_hex, str) or not sth_public_key_hex:
         failures.append("CHECKPOINT_DOC_MALFORMED: checkpoint.json is missing sth or sth_public_key_hex")
-        return
+        return notes
+    if sth_key_pin:
+        if sth_key_pin.strip().lower() != sth_public_key_hex.strip().lower():
+            failures.append(
+                "%s: checkpoint.json carries key %s, not the --sth-public-key you supplied (%s)"
+                % (CHECKPOINT_KEY_MISMATCH, sth_public_key_hex, sth_key_pin)
+            )
+            return notes
+        notes.append("continuity checkpoint signature checked against the key you supplied (--sth-public-key)")
+    else:
+        notes.append(
+            "%s: continuity checkpoint signature was checked only against the key checkpoint.json itself "
+            "carries: %s. A checkpoint built and signed by anyone is internally consistent; compare this key "
+            "with the log's published key out of band, or pass --sth-public-key."
+            % (CHECKPOINT_KEY_NOT_PINNED, sth_public_key_hex)
+        )
     if not _verify_sth_signature(sth, sth_public_key_hex, crypto):
         failures.append(
             "%s:checkpoint.json's signed tree head does not verify against its own public key" % STH_SIGNATURE_INVALID
@@ -817,7 +850,7 @@ def verify_continuity_checkpoint(base, receipt, failures, crypto):
 
     proof = _load_doc(base, "inclusion_proof.json", "INCLUSION_PROOF_MISSING", failures)
     if proof is None:
-        return
+        return notes
 
     receipt_hash_value = _compute_receipt_hash(receipt)
     expected_leaf = _leaf_hash(receipt_hash_value.encode("utf-8")).hex()
@@ -855,46 +888,61 @@ def verify_continuity_checkpoint(base, receipt, failures, crypto):
 
     consistency_path = base / "consistency_proof.json"
     if not consistency_path.exists():
-        return
+        return notes
     cproof = _load_doc(base, "consistency_proof.json", "CONSISTENCY_PROOF_MISSING", failures)
     if cproof is None:
-        return
+        return notes
     m, n = cproof.get("old_tree_size"), cproof.get("new_tree_size")
     try:
         m, n = int(m), int(n)
     except (TypeError, ValueError):
         failures.append("%s:consistency_proof has non-integer tree sizes" % ANCHOR_CONSISTENCY_PROOF_INVALID)
-        return
+        return notes
+    # A proof that does not end at the signed head bridges nothing the
+    # packet signs: any self-consistent pair of made-up roots passes the math.
+    if n != sth.get("tree_size") or cproof.get("new_root") != sth.get("root_hash"):
+        failures.append(
+            "%s: consistency_proof ends at (tree_size=%r, root=%r), not at checkpoint.json's signed tree head "
+            "(tree_size=%r, root=%r)"
+            % (CONSISTENCY_PROOF_NOT_AT_SIGNED_HEAD, n, cproof.get("new_root"), sth.get("tree_size"), sth.get("root_hash"))
+        )
+        return notes
+    notes.append(
+        "%s: consistency_proof bridges from old_tree_size=%d, old_root=%s. Nothing in this packet signs that "
+        "old root; compare it with a checkpoint you already trust."
+        % (CONSISTENCY_OLD_ROOT_NOT_CHECKED, m, cproof.get("old_root"))
+    )
     if m < 0 or n < 0 or m > n:
         failures.append("%s:consistency_proof has an invalid tree-size relationship" % ANCHOR_CONSISTENCY_PROOF_INVALID)
-        return
+        return notes
     if m == 0:
         if cproof.get("proof"):
             failures.append(
                 "%s:consistency_proof with old_tree_size=0 must carry no proof nodes"
                 % ANCHOR_CONSISTENCY_PROOF_INVALID
             )
-        return
+        return notes
     if m == n:
         if cproof.get("proof") or cproof.get("old_root") != cproof.get("new_root"):
             failures.append(
                 "%s:consistency_proof for equal tree sizes must have no proof nodes and matching roots"
                 % ANCHOR_CONSISTENCY_PROOF_INVALID
             )
-        return
+        return notes
     if not cproof.get("proof"):
         failures.append("%s:consistency_proof is missing required proof nodes" % ANCHOR_CONSISTENCY_PROOF_INVALID)
-        return
+        return notes
     try:
         nodes = [bytes.fromhex(node) for node in cproof["proof"]]
         old_hash, new_hash = _verify_consistency_nodes(m, n, nodes)
     except (ValueError, TypeError, IndexError, KeyError):
         failures.append("%s:consistency_proof is malformed" % ANCHOR_CONSISTENCY_PROOF_INVALID)
-        return
+        return notes
     if old_hash.hex() != cproof.get("old_root"):
         failures.append("%s:consistency_proof does not reproduce old_root" % ANCHOR_CONSISTENCY_PROOF_INVALID)
     if new_hash.hex() != cproof.get("new_root"):
         failures.append("%s:consistency_proof does not reproduce new_root" % ANCHOR_CONSISTENCY_PROOF_INVALID)
+    return notes
 
 
 def verify_ledger_root_version(base, failures):
@@ -1912,7 +1960,7 @@ def main(argv):
         elif key_failures:
             keyless = True
         failures.extend(checkpoint_failures)
-    verify_continuity_checkpoint(base, receipt, failures, crypto)
+    checkpoint_notes = verify_continuity_checkpoint(base, receipt, failures, crypto, sth_public_key_hex)
     verify_authentication_docs(receipt, events, base, failures)
     verify_scope_conformance(manifest, receipt, events, failures)
     verify_approver_snapshot(manifest, receipt, events, failures)
@@ -1920,6 +1968,7 @@ def main(argv):
     verify_ledger_head_anchor(base, failures, anchors_path)
     notes = verify_settlement_anchor(manifest, receipt, failures, crypto, settlement_key_pin)
     notes.append(SETTLEMENT_SIGNED_DOCS_NOTE)
+    notes = checkpoint_notes + notes
 
     if failures:
         print("VERIFICATION FAILED")
